@@ -1,0 +1,230 @@
+//
+//  URLEncoder.swift
+//  URLEncoder
+//
+//  Created by Brendan Henderson on 8/31/17.
+//  Copyright © 2017 OKAY. All rights reserved.
+//
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to deal
+//  in the Software without restriction, including without limitation the rights
+//  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//  copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+//  THE SOFTWARE.
+//
+
+import Foundation
+
+/// requires top level object to be a keyed container
+struct URLEncoder: TopLevelEncoder {
+    
+    static var contentType: String = "application/x-www-form-urlencoded"
+    
+    // MARK: options
+    
+    // JSON
+    var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate
+    var dataEncodingStrategy: JSONEncoder.DataEncodingStrategy = .deferredToData
+    var nonConformingFloatEncodingStrategy: JSONEncoder.NonConformingFloatEncodingStrategy = .throw
+    
+    // serializer
+    var serializer: URLQuerySerializer = URLQuerySerializer.shared
+    
+    // userInfo
+    var userInfo: [CodingUserInfoKey : Any] = [:]
+    
+    //
+    
+    private typealias Options = ()
+    
+    private var options: Base.Options {
+        return ((
+            self.dateEncodingStrategy,
+            self.dataEncodingStrategy,
+            self.nonConformingFloatEncodingStrategy
+        ), ())
+    }
+    
+    // MARK: TopLevelEncoder
+    
+    func encode<T: Encodable>(_ value: T) throws -> Data {
+        
+        let value = try self.encode(value: value)
+        
+        do {
+            return try self.serializer.queryData(from: value)
+            
+        } catch {
+            
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: [],
+                    debugDescription: "Unable to encode the given top-level value to query data",
+                    underlyingError: error
+                )
+            )
+        }
+    }
+    
+    /// returns an encoded, but not validated URLQuery object
+    func encode<T: Encodable>(value: T) throws -> Any {
+        
+        return try Base(options: self.options, userInfo: self.userInfo).start(with: value)
+    }
+    
+    // MARK: other encode types
+    
+    func encode<T: Encodable>(asQuery value: T) throws -> String {
+        
+        let value = try self.encode(value: value)
+        
+        do {
+            return try self.serializer.query(from: value)
+            
+        } catch {
+            
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: [],
+                    debugDescription: "Unable to encode the given top-level value to query data",
+                    underlyingError: error
+                )
+            )
+        }
+    }
+    
+    func encode<T: Encodable>(asQueryItems value: T) throws -> [URLQueryItem] {
+        
+        let value = try self.encode(value: value)
+        
+        do {
+            return try self.serializer.queryItems(from: value)
+            
+        } catch {
+            
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: [],
+                    debugDescription: "Unable to encode the given top-level value to query data",
+                    underlyingError: error
+                )
+            )
+        }
+    }
+    
+    // MARK: Base
+    
+    private class Base: EncoderJSONBase {
+        
+        static var usesStringValue: Bool = true
+        
+        typealias ExtraOptions = URLEncoder.Options
+        typealias Options = JSONOptions
+        
+        var codingPath: [CodingKey]
+        var options: Options
+        var userInfo: [CodingUserInfoKey : Any]
+        var reference: EncoderReference?
+        
+        required init(codingPath: [CodingKey], options: Options, userInfo: [CodingUserInfoKey : Any], reference: EncoderReference?) {
+            self.codingPath = codingPath
+            self.options = options
+            self.userInfo = userInfo
+            self.reference = reference
+        }
+        
+        var storage: [Any] = []
+        var canEncodeNewValue: Bool = true
+        
+        deinit {
+            self.willDeinit()
+        }
+        
+        // MARK: start
+        
+        func start<T: Encodable>(with value: T) throws -> Any {
+            
+            let value = try self.box(value, at: [])
+            
+            return _OrderedDictionary.baseType(value)
+        }
+        
+        /// URLEncoding needs ordering
+        func keyedContainerContainer() -> EncoderKeyedContainerContainer {
+            return _OrderedDictionary()
+        }
+    }
+    
+    /// a URLQuery sometimes needs order, so the standard mutable dictionary is out of the question
+    private class _OrderedDictionary: EncoderKeyedContainerContainer {
+        
+        typealias Element = (key: String, value: Any)
+        typealias Elements = [Element]
+        
+        private var elements: Elements
+        
+        init() {
+            self.elements = []
+        }
+        
+        /// replaces the value for the key at index or appends the new value
+        func set(toStorage value: Any, forKey key: AnyHashable) {
+            
+            let key = key as! String
+            
+            if let index = self.elements.index(where: { $0.key == key }) {
+                self.elements.remove(at: index)
+                
+                self.elements.insert((key, value), at: index)
+            } else {
+                self.elements.append((key, value))
+            }
+        }
+        
+        /// descends into a newly encoded value and removes the elements from all _OrderedDictionaries
+        static func baseType(_ value: Any) -> Any {
+            
+            if let value = value as? _OrderedDictionary {
+                
+                return value.elements.map { ($0, self.baseType($1)) }
+                
+            } else if let value = value as? NSArray {
+                
+                return value.map(self.baseType(_:))
+                
+            } else {
+                
+                return value
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
