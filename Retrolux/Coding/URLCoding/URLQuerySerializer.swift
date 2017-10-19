@@ -357,7 +357,7 @@ public struct URLQuerySerializer {
         } else if let value = value as? NSNumber {
             
             // one way to tell if a NSNumber is a Bool.
-            if value === kCFBooleanTrue || value === kCFBooleanFalse {
+            if value.isBoolean {
                 
                 query.append(URLQueryItem(name: name, value: (value.boolValue ? boolRepresentation.true : boolRepresentation.false)))
                 

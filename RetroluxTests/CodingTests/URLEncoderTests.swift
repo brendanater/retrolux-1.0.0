@@ -8,189 +8,584 @@
 
 import Foundation
 import XCTest
-@testable
 import Retrolux
-
-let r = XCTestSuite.init(name: "TestURLEncoder")
 
 class TestURLEncoder: XCTestCase {
     
-    var encoder = URLEncoder()
+    func newEncoder() -> URLEncoder {
+        
+        return URLEncoder()
+    }
     
-    func encode<T: Encodable>(_ value: T) throws -> Data {
-        return try self.encoder.encode(value)
-    }
-
-    func testArray() {
-
-        let value = ["key": [1]]
+    func newDecoder() -> URLDecoder {
         
-        let expectedResult = "key[]=1"
-
-        do {
-
-            let string = try String(data: self.encoder.encode(value), encoding: .utf8)
+        return URLDecoder()
+    }
+    
+    typealias Objects = CoderTesting.Objects
+    
+    func testRoundTrips() {
+        
+        self.roundTrip(CoderTesting.intValues   , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.int8Values  , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.int16Values , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.int32Values , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.int64Values , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.uintValues  , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.uint8Values , isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.uint16Values, isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.uint32Values, isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.uint64Values, isEqual: { $0 == $1 })
+        
+        self.roundTrip(CoderTesting.floatValues.filter { !$0.isNaN && Float(($0 as NSNumber).description) == $0 }, isEqual: { $0 == $1 })
+        self.roundTrip(CoderTesting.doubleValues.filter { !$0.isNaN && Double(($0 as NSNumber).description) == $0 }, isEqual: { $0 == $1 })
+        
+        self.roundTrip(Float.nan, isEqual: { $0.isNaN && $1.isNaN })
+        self.roundTrip(Double.nan, isEqual: { $0.isNaN && $1.isNaN })
+        
+        for (string, description) in CoderTesting.stringValues(from: [.urlQueryAllowed], removeCharacters: "#&") {
             
-            XCTAssert(string != nil)
-            
-            XCTAssert(string ?? "" == expectedResult, "Incorrect string: \(string ?? "")")
-
-        } catch {
-            XCTFail("\(type(of: error)).\(error)")
+            if self.roundTrip(string, description, isEqual: { $0 == $1 }) {
+                continue
+            } else {
+                break
+            }
         }
+        
+        self.roundTrip([true, false], isEqual: { $0 == $1 })
+        
+        self.roundTrip([1: true, 2: false], isEqual: { $0 == $1 })
+        
+        self.roundTrip(Date(), isEqual: { $0 == $1 })
+        self.roundTrip(Data(bytes: [13,12,11,2,3]), isEqual: { $0 == $1 })
+        self.roundTrip(URL(string: "test.com/random.orgdasdioahgsfas@dalk"), isEqual: { $0 == $1 })
+        self.roundTrip(URL(string: "test.com")!, isEqual: { $0 == $1 })
+        self.roundTrip(Decimal(), isEqual: { $0 == $1 })
+        
+        self.roundTrip(String?.none, isEqual: { $0 == $1 })
     }
-
-    func testNestedArray() {
-
-        let value = [[[[1]]]]
-
-        do {
-
-            _ = try self.encode(value)
-
-            XCTFail()
-
-        } catch EncodingError.invalidValue(let value, let context) {
-            
-            XCTAssert(value is NSArray)
-            
-            XCTAssert(context.codingPath.count == 0, context.debugDescription + ". CodingPath: \(context.codingPath)")
-            
-        } catch {
-            XCTFail("\(error)")
+    
+    func testEncodePaths() {
+        
+        self.startEncodePathTest(with: Float.infinity  )
+        self.startEncodePathTest(with: Double.infinity )
+        // .nan != .nan
+        self.startEncodePathTest(with: Date()          )
+        self.startEncodePathTest(with: Data()          )
+        
+        self.startEncodePathTest(with: Objects.VisualCheck())
+    }
+    
+    func testDecodePaths() {
+        
+        self.startDecodePathTest(with: Float    .self, from: "test"     , errorType: .typeMismatch(Float  .self))
+        self.startDecodePathTest(with: Int      .self, from: UInt64.max , errorType: .typeMismatch(Int.self))// number does not fit
+        self.startDecodePathTest(with: UInt     .self, from: -1         , errorType: .typeMismatch(UInt.self))// number does not fit
+        //        self.startDecodePathTest(with: Bool     .self, from: 2          , errorType: .typeMismatch(Bool   .self)) // value never throws
+        self.startDecodePathTest(with: Double   .self, from: "test"     , errorType: .typeMismatch(Double .self))
+        //        self.startDecodePathTest(with: String   .self, from: 1          , errorType: .typeMismatch(String .self)) // all values are String
+        self.startDecodePathTest(with: URL      .self, from: "%"        , errorType: .dataCorrupted)// invalid url
+        self.startDecodePathTest(with: Decimal  .self, from: "test"     , errorType: .typeMismatch(Decimal.self)) // try decode as Double
+        // .nan != .nan
+        self.startDecodePathTest(with: Date.self, from: "test", errorType: .typeMismatch(Date.self))
+        self.startDecodePathTest(with: Data.self, from: 1     , errorType: .typeMismatch(Data.self))
+        
+        self.startDecodePathTest(with: Objects.VisualCheck.self         , from: "test"          , errorType: .valueNotFound(Objects.VisualCheck.self))
+        self.startDecodePathTest(with: Objects.KeyNotFoundCheck.self    , from: ["test": true]  , errorType: .keyNotFound(stringValue: "1000", intValue: 1000))
+        self.startDecodePathTest(with: Objects.UnkeyedIsAtEndCheck.self , from: [true]          , errorType: .valueNotFound(Objects.UnkeyedIsAtEndCheck.self))
+    }
+    
+    @discardableResult
+    func roundTrip<T: Codable>(_ start: T, _ valueDescription: String = "\(T.self)", hasContainer: Bool = false, arraysAreDictionaries: Bool = false, currentCount: Int = 0, isEqual: @escaping (T, T)->Bool) -> Bool {
+        
+        func willFail() {
+            print("roundTrip will fail:", T.self)
         }
-    }
-
-    func testDictionary() {
-
-        let value = ["key": ["key2":1]]
         
-        let expectedResult = "key[key2]=1"
+        var stats: CoderTesting.EncodeStats
         
         do {
-            
-            let string = try String(data: self.encode(value), encoding: .utf8)
-            
-            XCTAssert(string != nil)
-            
-            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
-            
+            stats = try CoderTesting.encodeStats(expected: Bool.self, encodable: start)
         } catch {
-            XCTFail("\(error)")
+            willFail()
+            XCTFail("failed to get stats: \(error)")
+            return false
         }
-    }
-
-    func testNestedDictionary() {
-
-        let value = ["key": ["key1":["key2": ["key3": 3], "key4": ["key5": 4]]]]
         
-        let expectedResult = "key[key1][key2][key3]=3&key[key1][key4][key5]=4"
+        let hasContainer = hasContainer || stats.topLevelType == .unkeyed || stats.topLevelType == .keyed
         
-        do {
-            
-            let string = try String(data: self.encode(value), encoding: .utf8)
-            
-            XCTAssert(string != nil)
-            
-            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
-            
-        } catch {
-            XCTFail("Error was thrown: \(error)")
+        let arraysAreDictionaries = arraysAreDictionaries || stats.topLevelType == .unkeyed && hasContainer
+        
+        switch start {
+        case is URL, is Decimal: stats.topLevelType = .single
+        default:
+            if T.self is Optional<URL>.Type {
+                stats.topLevelType = .single
+            }
         }
-    }
-
-    func testMixedDictionaryAndArray() {
-
-        let value = ["key1":["key2": ["key3": [["key4": ["key5": [[[["key6": [1]]]]]]]]]]]
-
-        do {
-
-            let value2 = try String(data: self.encode(value), encoding: .utf8)
-
-            XCTFail("encoder did not throw: \(value2 ?? "<void>__")")
-
-        } catch EncodingError.invalidValue(let value, let context) {
+        
+        switch stats.topLevelType {
             
-            XCTAssert(value is NSDictionary)
+        case .single, .unkeyed:
             
-            XCTAssert(context.underlyingError is URLQuerySerializer.ToQueryError?)
-            
-            XCTAssert(context.codingPath.count == 0)
-            
-            if let error = context.underlyingError {
-                do {
-                    throw error
-                } catch URLQuerySerializer.ToQueryError.nestedContainerInArray {
-                    
-                } catch {
-                    XCTFail("\(error)")
+            return self.roundTrip(Objects.Keyed(key: "test", value: start), valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                
+                guard $1.elements.first?.value != nil else {
+                    return false
                 }
+                
+                return isEqual($0.elements.first!.value, $1.elements.first!.value)
+            })
+            
+        default:
+            
+            func newEncoder() -> URLEncoder {
+                
+                var encoder = self.newEncoder()
+                
+                if arraysAreDictionaries {
+                    encoder.serializer.arraySerialization = .arraysAreDictionaries
+                }
+                
+                encoder.nonConformingFloatEncodingStrategy = .convertToString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
+                
+                return encoder
             }
             
-        } catch {
-            XCTFail("Worng error: \(error)")
-        }
-    }
-
-    class Object1: Codable {
-        var value = 1
-        var array = [1]
-        var dictionary = ["key": 2]
-        var nestedDictionary = ["key": [1]]
-    }
-
-    class WithNestedClass: Codable {
-        class Nested: Codable {
-            class NestedNested: Codable {
-                var value = 1
+            func newDecoder() -> URLDecoder {
+                
+                var decoder = URLDecoder()
+                
+                if arraysAreDictionaries {
+                    decoder.serializer.arraySerialization = .arraysAreDictionaries
+                }
+                
+                decoder.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
+                
+                return decoder
             }
             
-            var value = 1
-            var nested = NestedNested()
-        }
-
-        var value = 1
-        var value2 = "test"
-        var nested = Nested()
-    }
-
-    func testObject() {
-
-        let value = Object1()
-        
-        let expectedResult = "value=1&array[]=1&dictionary[key]=2&nestedDictionary[key][]=1"
-        
-        do {
+            let value: Any
             
-            let string = try String(data: self.encode(value), encoding: .utf8)
+            // value to Any
+            do {
+                
+                value = try newEncoder().encode(value: start)
+                
+            } catch {
+                
+                willFail()
+                XCTFail("\(error)")
+                return false
+            }
             
-            XCTAssert(string == expectedResult, "Incorrect result: \(string!)")
+            // value to Data
             
-        } catch {
-            XCTFail("Error was thrown: \(error)")
-        }
-    }
-
-    func testNestedObject() {
-
-        let value = WithNestedClass()
-        
-        let expectedResult = "value=1&value2=test&nested[value]=1&nested[nested][value]=1"
-        
-        do {
+            let data: Data
             
-            let string = try String(data: self.encode(value), encoding: .utf8)
+            do {
+                
+                data = try newEncoder().encode(start)
+                
+            } catch {
+                
+                willFail()
+                XCTFail("\(error)")
+                return false
+                
+            }
             
-            XCTAssert(string != nil)
+            // value from Data
             
-            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
+            do {
+                
+                let result = try newDecoder().decode(T.self, from: data)
+                
+//                print(String.init(data: data, encoding: URLQuerySerializer().dataStringEncoding)!)
+                
+                guard isEqual(start, result) else {
+                    
+                    willFail()
+                    XCTFail("decoded value: \(result) != \(start)")
+                    return false
+                }
+                
+            } catch {
+                
+                willFail()
+                XCTFail("\(error)")
+                return false
+            }
             
-        } catch {
-            XCTFail("Error was thrown: \(error)")
+            // value from Any
+            
+            do {
+                
+                let result = try newDecoder().decode(T.self, fromValue: value)
+                
+                guard isEqual(start, result) else {
+                    
+                    willFail()
+                    XCTFail("decoded value: \(result) != \(start)")
+                    return false
+                }
+                
+            } catch {
+                
+                willFail()
+                XCTFail("\(error)")
+                return false
+            }
+            
+            if currentCount < 3 {
+                
+                self.roundTrip(Objects.Single(start)                     , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: { return isEqual($0.value, $1.value) })
+                self.roundTrip(Objects.Keyed(key: "test", value: start)       , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements["test"] { return isEqual($0.elements["test"]!, rhs) } else { return false } })
+                self.roundTrip(Objects.SubKeyed1(key: "test", value: start)   , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements["test"] { return isEqual($0.elements["test"]!, rhs) } else { return false } })
+                self.roundTrip(Objects.SubKeyed2(key: "test", value: start)   , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements["test"] { return isEqual($0.elements["test"]!, rhs) } else { return false } })
+                self.roundTrip(Objects.Unkeyed(start)                    , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements.first { return isEqual($0.elements.first!, rhs) } else { return false } })
+                self.roundTrip(Objects.SubUnkeyed1(start)                , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements.first { return isEqual($0.elements.first!, rhs) } else { return false } })
+                self.roundTrip(Objects.SubUnkeyed2(start)                , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: {
+                    if let rhs = $1.elements.first { return isEqual($0.elements.first!, rhs) } else { return false } })
+                self.roundTrip(Objects.UnkeyedNestedUnkeyed(start)       , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: { $0.value == $1.value })
+                self.roundTrip(Objects.UnkeyedNestedKeyed(start)         , valueDescription, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: { $0.value == $1.value })
+                
+                self.roundTrip(T?.some(start), hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: { if let value = $1 { return isEqual($0!, value) } else { return false } })
+                self.roundTrip(T?.none, hasContainer: hasContainer, arraysAreDictionaries: arraysAreDictionaries, currentCount: currentCount + 1, isEqual: { $0.isNil && $1.isNil })
+            }
+            
+            return true
         }
     }
     
-    // skip path tests because URLEncoder does not add any special functions to path handling
+    func startEncodePathTest<T: Encodable>(with value: T) {
+        
+        self.encodePathTest(value, expected: type(of: value), currentCount: 0)
+    }
+    
+    func startDecodePathTest<T: Decodable, E>(with decodable: T.Type, from value: E, errorType: CoderTesting.DecodingErrorType) {
+        
+        self.decodePathTest(decodable, from: value, expected: decodable, errorType: errorType, currentCount: 0)
+    }
+    
+    func encodePathTest<T: Encodable, E: Encodable>(_ value: E, expected: T.Type, currentCount: Int) {
+        
+        /// print where the fail is.
+        func willFail() {
+            print("encodePathTest will fail:", type(of: value), expected)
+        }
+        
+        let stats = try! CoderTesting.encodeStats(expected: expected, encodable: value)
+        
+        if stats.willCrashIfJSONEncoder {
+            return
+        }
+        
+        switch stats.topLevelType {
+        case .keyed, .unkeyed:
+            
+            do {
+                
+                var encoder = self.newEncoder()
+                
+                encoder.dateEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
+                encoder.dataEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
+                
+                _ = try encoder.encode(value)
+                
+                willFail()
+                XCTFail("failed to throw")
+                return
+                
+            } catch let error as EncodingError {
+                
+                guard type(of: error.value) == expected else {
+                    willFail()
+                    XCTFail("unexpected invalidValue: \(type(of: error.value)) expected: \(expected)")
+                    return
+                }
+                
+                if let fail = CoderTesting.guardEqual(expected: stats.codingPathOfFirstExpected!, actual: error.context.codingPath) {
+                    willFail()
+                    XCTFail(fail.description)
+                    return
+                }
+                
+            } catch {
+                willFail()
+                XCTFail("\(error)")
+                return
+            }
+            
+        case .single: break
+        }
+        
+        if currentCount < 3 {
+            self.encodePathTest(Objects.Single(value)                   , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.Keyed(key: 1, value: value)     , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubKeyed1(key: 1, value: value) , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubKeyed2(key: 1, value: value) , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.Unkeyed(value)                  , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubUnkeyed1(value)              , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubUnkeyed2(value)              , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.MultipleStore(value)            , expected: expected, currentCount: currentCount + 1)
+        }
+    }
+    
+    func decodePathTest<T: Decodable, D: Decodable, E>(_ decodable: D.Type, from value: E, expected: T.Type, errorType: CoderTesting.DecodingErrorType, currentCount: Int) {
+        
+        func willFail() {
+            print("decodePathTest will fail:", decodable, type(of: value), expected, errorType)
+        }
+        
+        let stats = try! CoderTesting.decodeStats(expected: expected, decodable: decodable)
+        
+        switch stats.topLevelType {
+            
+        case .keyed:
+            
+            do {
+                
+                guard URLQuerySerializer.isValidObject(value) else {
+                    willFail()
+                    XCTFail("\(type(of: value)) is not a valid URLQuery object")
+                    return
+                }
+                
+                var serializer = URLQuerySerializer()
+                serializer.arraySerialization = .arraysAreDictionaries
+                
+                let data = try serializer.queryData(from: value)
+                
+                var decoder = self.newDecoder()
+                
+                decoder.dateDecodingStrategy = .custom { throw DecodingError.typeMismatch(Date.self, DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
+                decoder.dataDecodingStrategy = .custom { throw DecodingError.typeMismatch(Data.self, DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
+                decoder.serializer.arraySerialization = .arraysAreDictionaries
+                
+                _ = try decoder.decode(decodable, from: data)
+                
+                willFail()
+                XCTFail("failed to throw")
+                return
+                
+            } catch let error as DecodingError {
+                
+                guard errorType.isCorrect(error) else {
+                    willFail()
+                    XCTFail("incorrect error type. expected: \(errorType) actual: \(error)")
+                    return
+                }
+                
+                if let fail = CoderTesting.guardEqual(expected: stats.codingPathOfFirstExpected!, actual: error.context.codingPath) {
+                    willFail()
+                    XCTFail(fail.description)
+                    return
+                }
+            } catch {
+                willFail()
+                XCTFail("\(error)")
+                return
+            }
+            
+        default: break
+        }
+        
+        if currentCount < 3 {
+            
+            self.decodePathTest(Objects.Single<D>.self        , from: value                   , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.Keyed<Int, D>.self    , from: ["1": value]            , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubKeyed1<Int, D>.self, from: ["1": value]            , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubKeyed2<Int, D>.self, from: ["super": ["1": value]] , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.Unkeyed<D>.self       , from: [value]                 , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubUnkeyed1<D>.self   , from: [value]                 , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubUnkeyed2<D>.self   , from: [[value]]               , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+        }
+    }
+    
+    
+    
+//    var encoder = URLEncoder()
+//
+//    func encode<T: Encodable>(_ value: T) throws -> Data {
+//        return try self.encoder.encode(value)
+//    }
+//
+//    func testArray() {
+//
+//        let value = ["key": [1]]
+//
+//        let expectedResult = "key[]=1"
+//
+//        do {
+//
+//            let string = try String(data: self.encoder.encode(value), encoding: .utf8)
+//
+//            XCTAssert(string != nil)
+//
+//            XCTAssert(string ?? "" == expectedResult, "Incorrect string: \(string ?? "")")
+//
+//        } catch {
+//            XCTFail("\(type(of: error)).\(error)")
+//        }
+//    }
+//
+//    func testNestedArray() {
+//
+//        let value = [[[[1]]]]
+//
+//        do {
+//
+//            _ = try self.encode(value)
+//
+//            XCTFail()
+//
+//        } catch EncodingError.invalidValue(let value, let context) {
+//
+//            XCTAssert(value is NSArray)
+//
+//            XCTAssert(context.codingPath.count == 0, context.debugDescription + ". CodingPath: \(context.codingPath)")
+//
+//        } catch {
+//            XCTFail("\(error)")
+//        }
+//    }
+//
+//    func testDictionary() {
+//
+//        let value = ["key": ["key2":1]]
+//
+//        let expectedResult = "key[key2]=1"
+//
+//        do {
+//
+//            let string = try String(data: self.encode(value), encoding: .utf8)
+//
+//            XCTAssert(string != nil)
+//
+//            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
+//
+//        } catch {
+//            XCTFail("\(error)")
+//        }
+//    }
+//
+//    func testNestedDictionary() {
+//
+//        let value = ["key": ["key1":["key2": ["key3": 3], "key4": ["key5": 4]]]]
+//
+//        let expectedResult = "key[key1][key2][key3]=3&key[key1][key4][key5]=4"
+//
+//        do {
+//
+//            let string = try String(data: self.encode(value), encoding: .utf8)
+//
+//            XCTAssert(string != nil)
+//
+//            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
+//
+//        } catch {
+//            XCTFail("Error was thrown: \(error)")
+//        }
+//    }
+//
+//    func testMixedDictionaryAndArray() {
+//
+//        let value = ["key1":["key2": ["key3": [["key4": ["key5": [[[["key6": [1]]]]]]]]]]]
+//
+//        do {
+//
+//            let value2 = try String(data: self.encode(value), encoding: .utf8)
+//
+//            XCTFail("encoder did not throw: \(value2 ?? "<void>__")")
+//
+//        } catch EncodingError.invalidValue(let value, let context) {
+//
+//            XCTAssert(value is NSDictionary)
+//
+//            XCTAssert(context.underlyingError is URLQuerySerializer.ToQueryError?)
+//
+//            XCTAssert(context.codingPath.count == 0)
+//
+//            if let error = context.underlyingError {
+//                do {
+//                    throw error
+//                } catch URLQuerySerializer.ToQueryError.nestedContainerInArray {
+//
+//                } catch {
+//                    XCTFail("\(error)")
+//                }
+//            }
+//
+//        } catch {
+//            XCTFail("Worng error: \(error)")
+//        }
+//    }
+//
+//    class Object1: Codable {
+//        var value = 1
+//        var array = [1]
+//        var dictionary = ["key": 2]
+//        var nestedDictionary = ["key": [1]]
+//    }
+//
+//    class WithNestedClass: Codable {
+//        class Nested: Codable {
+//            class NestedNested: Codable {
+//                var value = 1
+//            }
+//
+//            var value = 1
+//            var nested = NestedNested()
+//        }
+//
+//        var value = 1
+//        var value2 = "test"
+//        var nested = Nested()
+//    }
+//
+//    func testObject() {
+//
+//        let value = Object1()
+//
+//        let expectedResult = "value=1&array[]=1&dictionary[key]=2&nestedDictionary[key][]=1"
+//
+//        do {
+//
+//            let string = try String(data: self.encode(value), encoding: .utf8)
+//
+//            XCTAssert(string == expectedResult, "Incorrect result: \(string!)")
+//
+//        } catch {
+//            XCTFail("Error was thrown: \(error)")
+//        }
+//    }
+//
+//    func testNestedObject() {
+//
+//        let value = WithNestedClass()
+//
+//        let expectedResult = "value=1&value2=test&nested[value]=1&nested[nested][value]=1"
+//
+//        do {
+//
+//            let string = try String(data: self.encode(value), encoding: .utf8)
+//
+//            XCTAssert(string != nil)
+//
+//            XCTAssert(string! == expectedResult, "Incorrect result: \(string!)")
+//
+//        } catch {
+//            XCTFail("Error was thrown: \(error)")
+//        }
+//    }
+//
+//    // skip path tests because URLEncoder does not add any special functions to path handling
 }
 
 

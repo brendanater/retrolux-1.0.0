@@ -119,12 +119,8 @@ public struct CodingSuperKey: CodingKey {
     public init(intValue: Int) {}
 }
 
-public extension CodingKey {
-    
-    public func isEqual(to key: CodingKey) -> Bool {
-        
-        return self.stringValue == key.stringValue && self.intValue == key.intValue
-    }
+func ==(lhs: CodingKey, rhs: CodingKey) -> Bool {
+    return lhs.stringValue == rhs.stringValue && lhs.intValue == rhs.intValue
 }
 
 public func equalPaths(_ path1: [CodingKey], _ path2: [CodingKey]) -> Bool {
@@ -135,7 +131,7 @@ public func equalPaths(_ path1: [CodingKey], _ path2: [CodingKey]) -> Bool {
     
     for (key1, key2) in zip(path1, path2) {
         
-        guard key1.isEqual(to: key2) else {
+        guard key1 == key2 else {
             
             return false
         }

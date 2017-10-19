@@ -28,22 +28,24 @@
 import Foundation
 
 /// requires top level object to be a keyed container
-struct URLEncoder: TopLevelEncoder {
+public struct URLEncoder: TopLevelEncoder {
     
-    static var contentType: String = "application/x-www-form-urlencoded"
+    public static var contentType: String = "application/x-www-form-urlencoded"
     
     // MARK: options
     
     // JSON
-    var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate
-    var dataEncodingStrategy: JSONEncoder.DataEncodingStrategy = .deferredToData
-    var nonConformingFloatEncodingStrategy: JSONEncoder.NonConformingFloatEncodingStrategy = .throw
+    public var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate
+    public var dataEncodingStrategy: JSONEncoder.DataEncodingStrategy = .deferredToData
+    public var nonConformingFloatEncodingStrategy: JSONEncoder.NonConformingFloatEncodingStrategy = .throw
     
     // serializer
-    var serializer: URLQuerySerializer = URLQuerySerializer.shared
+    public var serializer: URLQuerySerializer = URLQuerySerializer.shared
     
     // userInfo
-    var userInfo: [CodingUserInfoKey : Any] = [:]
+    public var userInfo: [CodingUserInfoKey : Any] = [:]
+    
+    public init() {}
     
     //
     
@@ -59,7 +61,7 @@ struct URLEncoder: TopLevelEncoder {
     
     // MARK: TopLevelEncoder
     
-    func encode<T: Encodable>(_ value: T) throws -> Data {
+    public func encode<T: Encodable>(_ value: T) throws -> Data {
         
         let value = try self.encode(value: value)
         
@@ -79,15 +81,30 @@ struct URLEncoder: TopLevelEncoder {
         }
     }
     
-    /// returns an encoded, but not validated URLQuery object
-    func encode<T: Encodable>(value: T) throws -> Any {
+    public func encode<T: Encodable>(value: T) throws -> Any {
         
-        return try Base(options: self.options, userInfo: self.userInfo).start(with: value)
+        let result = try Base(options: self.options, userInfo: self.userInfo).start(with: value)
+        
+        do {
+            try URLQuerySerializer.assertValidObject(result)
+            
+            return result
+            
+        } catch {
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: [],
+                    debugDescription: "Unable to encode the given top-level value to a URLQuery object",
+                    underlyingError: error
+                )
+            )
+        }
     }
     
     // MARK: other encode types
     
-    func encode<T: Encodable>(asQuery value: T) throws -> String {
+    public func encode<T: Encodable>(asQuery value: T) throws -> String {
         
         let value = try self.encode(value: value)
         
@@ -100,14 +117,14 @@ struct URLEncoder: TopLevelEncoder {
                 value,
                 EncodingError.Context(
                     codingPath: [],
-                    debugDescription: "Unable to encode the given top-level value to query data",
+                    debugDescription: "Unable to encode the given top-level value to a URLQuery",
                     underlyingError: error
                 )
             )
         }
     }
     
-    func encode<T: Encodable>(asQueryItems value: T) throws -> [URLQueryItem] {
+    public func encode<T: Encodable>(asQueryItems value: T) throws -> [URLQueryItem] {
         
         let value = try self.encode(value: value)
         
@@ -120,7 +137,7 @@ struct URLEncoder: TopLevelEncoder {
                 value,
                 EncodingError.Context(
                     codingPath: [],
-                    debugDescription: "Unable to encode the given top-level value to query data",
+                    debugDescription: "Unable to encode the given top-level value to URLQuery items",
                     underlyingError: error
                 )
             )

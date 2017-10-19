@@ -89,12 +89,12 @@ public extension AnyDecoderBase {
     }
     
     public var currentValue: Any {
-        return self.storage.last ?? ()
+        return self.storage.last ?? {()->Any in fatalError("Tried to decode from nothing")}
     }
     
     // MARK: decode single value
     
-    public func decodeNil() -> Bool { return isNil(self.currentValue) || self.currentValue is Void }
+    public func decodeNil() -> Bool { return self.unboxNil(self.currentValue) }
     
     public func decode(_ type: Bool  .Type) throws -> Bool   { return try self.unbox(self.currentValue, at: self.codingPath) }
     public func decode(_ type: Int   .Type) throws -> Int    { return try self.unbox(self.currentValue, at: self.codingPath) }
@@ -114,10 +114,14 @@ public extension AnyDecoderBase {
     
     // MARK: unbox
     
+    func unboxNil(_ value: Any) -> Bool {
+        return isNil(value)
+    }
+    
     /// an error to throw if unboxing fails
     public func failedToUnbox(_ value: Any, to _type: Any.Type, _ typeDescription: String? = nil, at codingPath: [CodingKey]) -> DecodingError {
         
-        if isNil(value) || value is Void {
+        if isNil(value) {
             return self.notFound(_type, typeDescription, at: codingPath)
         } else {
             return self.typeError(value, _type, typeDescription, at: codingPath)
@@ -164,16 +168,27 @@ public extension AnyDecoderBase {
     
     public func convert(bool value: Any, at codingPath: [CodingKey]) throws -> Bool {
         
-        return value as? Bool ?? isNil(value) || value is Void
+        if (value as? NSNumber)?.isBoolean ?? false, let value = value as? Bool {
+            
+            return value
+            
+        } else if let value = value as? String, let bool = Bool(value) {
+            
+            return bool
+        }
+        
+        throw failedToUnbox(value, to: Bool.self, at: codingPath)
     }
     
     public func convert<T: ConvertibleNumber>(number value: Any, at codingPath: [CodingKey]) throws -> T {
         
-        if let number = value as? T {
+        if (value as? NSNumber)?.isBoolean ?? false {
+
+        } else if value is T {// value is T is more accurate than as? T
             
-            return number
+            return value as! T
             
-        } else if let value = value as? NSNumber, value !== kCFBooleanTrue && value !== kCFBooleanFalse, let number = T(exactly: value) {
+        } else if value is NSNumber, let value = value as? NSNumber, let number = T(exactly: value), number as? NSNumber == value {
             
             return number
             
@@ -333,12 +348,6 @@ public extension DecoderBase {
     }
 }
 
-public extension DecoderBase where Self.Options == Void {
-    public init(userInfo: [CodingUserInfoKey: Any]) {
-        self.init(options: (), userInfo: userInfo)
-    }
-}
-
 // JSONBase
 
 public extension JSONDecoder {
@@ -377,7 +386,7 @@ public extension DecoderJSONBase {
     func unbox<T>(_ value: Any, at codingPath: [CodingKey]) throws -> T where T : Decodable {
         
         return try self.unbox(json: value, at: codingPath)
-            ?? self.redecode(value, at: codingPath)
+            ?? self.unbox(default: value, at: codingPath)
     }
     
     func unbox<T>(json value: Any, at codingPath: [CodingKey]) throws -> T? where T : Decodable {
@@ -545,11 +554,7 @@ public extension DecoderKeyedContainer {
     
     public var allKeys: [Key] {
         
-        if self.usesStringValue {
-            return self.container.stringValueKeys.flatMap { Key(stringValue: $0) }
-        } else {
-            return self.container.intValueKeys.flatMap { Key(intValue: $0) }
-        }
+        return self.container.stringValueKeys.flatMap { Key(stringValue: $0) } + self.container.intValueKeys.flatMap { Key(intValue: $0) }
     }
     
     private func keyNotFound(_ key: CodingKey) -> Error {
@@ -594,7 +599,7 @@ public extension DecoderKeyedContainer {
     
     public func decodeNil(forKey key: Key) throws -> Bool {
         
-        return isNil(try value(forKey: key))
+        return self.decoder.unboxNil(try self.value(forKey: key))
     }
     
     public func decode(_ type: Bool.Type  , forKey key: Key) throws -> Bool   { return try self.decoder.unbox(self.value(forKey: key), at: self.currentPath(key)) }
@@ -641,7 +646,7 @@ public extension DecoderKeyedContainer {
             userInfo: self.decoder.userInfo
         )
         
-        decoder.storage.append((try? self.value(forKey: key)) ?? ())
+        decoder.storage.append((try? self.value(forKey: key)) ?? NSNull())
         
         return decoder
     }
@@ -758,14 +763,14 @@ public extension DecoderUnkeyedContainer {
     
     public mutating func decodeNil() throws -> Bool {
         
-        let result = isNil(try self.currentValue(Void.self, "nil"))
-        
         //  if true, will decode nil, be sure to increment path
-        if result {
+        if self.decoder.unboxNil(try self.currentValue(NSNull.self)) {
             self.increment()
+            
+            return true
+        } else {
+            return false
         }
-        
-        return result
     }
     
     public mutating func decode(_ type: Bool.Type  ) throws -> Bool   { defer { self.increment() } ; return try self.decoder.unbox(self.currentValue(type), at: self.currentPath) }
@@ -935,6 +940,7 @@ extension Array: BrokenDecode {
         let metaType = Element.self as! Decodable.Type
         
         while !container.isAtEnd {
+            
             self.append(try metaType.init(__from: &container) as! Element)
         }
     }
@@ -979,6 +985,7 @@ extension Dictionary: BrokenDecode {
         case is Int.Type:
             let container = try decoder.container(keyedBy: _DictionaryCodingKey.self)
             for key in container.allKeys {
+                
                 guard key.intValue != nil else {
                     throw DecodingError.typeMismatch(
                         Int.self,

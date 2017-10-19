@@ -8,32 +8,33 @@
 
 import Foundation
 
-struct DecoderDefaultKeyedContainer<K: CodingKey>: DecoderKeyedContainer {
+public struct DecoderDefaultKeyedContainer<K: CodingKey>: DecoderKeyedContainer {
     
-    typealias Key = K
+    public typealias Key = K
     
-    var decoder: AnyDecoderBase
-    var container: DecoderKeyedContainerContainer
-    var nestedPath: [CodingKey]
+    public var decoder: AnyDecoderBase
+    public var container: DecoderKeyedContainerContainer
+    public var nestedPath: [CodingKey]
     
-    init(decoder: AnyDecoderBase, container: DecoderKeyedContainerContainer, nestedPath: [CodingKey]) {
+    public init(decoder: AnyDecoderBase, container: DecoderKeyedContainerContainer, nestedPath: [CodingKey]) {
         self.decoder = decoder
         self.container = container
         self.nestedPath = nestedPath
     }
 }
 
-struct DecoderDefaultUnkeyedContainer: DecoderUnkeyedContainer {
+public struct DecoderDefaultUnkeyedContainer: DecoderUnkeyedContainer {
     
-    var decoder: AnyDecoderBase
-    var container: DecoderUnkeyedContainerContainer
-    var nestedPath: [CodingKey]
+    public var decoder: AnyDecoderBase
+    public var container: DecoderUnkeyedContainerContainer
+    public var nestedPath: [CodingKey]
     
-    init(decoder: AnyDecoderBase, container: DecoderUnkeyedContainerContainer, nestedPath: [CodingKey]) {
+    public init(decoder: AnyDecoderBase, container: DecoderUnkeyedContainerContainer, nestedPath: [CodingKey]) {
         self.decoder = decoder
         self.container = container
         self.nestedPath = nestedPath
     }
     
-    var currentIndex: Int = 0
+    public var currentIndex: Int = 0
 }
+

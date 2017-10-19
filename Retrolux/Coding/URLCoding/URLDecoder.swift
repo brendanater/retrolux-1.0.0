@@ -50,7 +50,10 @@ public struct URLDecoder: TopLevelDecoder {
             self.dateDecodingStrategy,
             self.dataDecodingStrategy,
             self.nonConformingFloatDecodingStrategy
-        ), ())
+        ), (
+            self.serializer.boolRepresentation,
+            ()
+        ))
     }
     
     // decoding
@@ -136,7 +139,7 @@ public struct URLDecoder: TopLevelDecoder {
         
         static var usesStringValue: Bool = true
         
-        typealias ExtraOptions = Void
+        typealias ExtraOptions = (boolRepresentation: (true: String, false: String), ())
         typealias Options = JSONOptions
         
         var codingPath: [CodingKey]
@@ -144,7 +147,6 @@ public struct URLDecoder: TopLevelDecoder {
         var userInfo: [CodingUserInfoKey : Any]
         
         required init(codingPath: [CodingKey], options: Options, userInfo: [CodingUserInfoKey : Any]) {
-            
             self.options = options
             self.userInfo = userInfo
             self.codingPath = codingPath
@@ -175,6 +177,27 @@ public struct URLDecoder: TopLevelDecoder {
                 
                 throw self.failedToUnbox(value, to: NSDictionary.self, "\(nested ? "nested " : "")keyed container", at: codingPath)
             }
+        }
+        
+        func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> Bool {
+            
+            if (value as? NSNumber)?.isBoolean ?? false, let value = value as? Bool {
+                
+                return value
+                
+            } else if let value = value as? String {
+                
+                switch value {
+                case self.options.extra.boolRepresentation.true: return true
+                case self.options.extra.boolRepresentation.false: return false
+                default:
+                    if let value = Bool(value) {
+                        return value
+                    }
+                }
+            }
+            
+            throw self.failedToUnbox(value, to: Bool.self, at: codingPath)
         }
     }
 }

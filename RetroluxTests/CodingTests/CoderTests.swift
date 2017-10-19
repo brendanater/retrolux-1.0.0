@@ -22,22 +22,6 @@ import XCTest
 //
 //}
 
-class TestURLEncoder2: XCTestCase, CoderTestCase {
-    
-    func newEncoder() -> TopLevelEncoder {
-        return URLEncoder()
-    }
-    
-    func newDecoder() -> TopLevelDecoder {
-        return URLDecoder()
-    }
-    
-    func test() {
-        if let fail = self.roundTripAsStrings(characterSets: [.decimalDigits, .controlCharacters, .capitalizedLetters, .letters], removeCharacters: "", compatibleContainer: {[1: $0] as Objects.CEDictionary}) {
-            XCTFail(fail.description)
-        }
-    }
-}
 
 class TestExpectedPaths: XCTestCase {
     
@@ -50,172 +34,173 @@ class TestExpectedPaths: XCTestCase {
     }
     
     typealias Objects = CoderTesting.Objects
-    typealias Fails = CoderTesting.Fails
     
-    func testPaths() {
+    func testEncodePaths() {
         
-        var fails = Fails(forTest: "TestExpectedPaths", max: 10)
-        
-        self.startPathTest(for: Float.infinity , to: &fails)
-        self.startPathTest(for: Double.infinity, to: &fails)
+        self.startEncodePathTest(with: Float.infinity  )
+        self.startEncodePathTest(with: Double.infinity )
         // .nan != .nan
-        self.startPathTest(for: Date()         , to: &fails)
-        self.startPathTest(for: Data()         , to: &fails)
+        self.startEncodePathTest(with: Date()          )
+        self.startEncodePathTest(with: Data()          )
         
-        if let fail = fails.result() {
-            XCTFail(fail.description)
-        }
-        
-//        self.startVisualPathTest(to: &fails)
-        
-        if let fail = fails.result() {
-            XCTFail(fail.description)
-        }
+        self.startEncodePathTest(with: Objects.VisualCheck())
     }
     
-    func startPathTest<Expected: Codable & Equatable>(for expected: Expected, to fails: inout Fails) {
+    func testDecodePaths() {
         
-        self.pathTest(Objects.Single(expected), (expected: expected, currentCount: 0), to: &fails)
+        self.startDecodePathTest(with: Float    .self, from: "test"     , errorType: .typeMismatch(Float  .self))
+        self.startDecodePathTest(with: Int      .self, from: UInt64.max , errorType: .dataCorrupted)// number does not fit
+        self.startDecodePathTest(with: UInt     .self, from: -1         , errorType: .dataCorrupted)// number does not fit
+        self.startDecodePathTest(with: Bool     .self, from: 2          , errorType: .typeMismatch(Bool   .self))
+        self.startDecodePathTest(with: Double   .self, from: "test"     , errorType: .typeMismatch(Double .self))
+        self.startDecodePathTest(with: String   .self, from: 1          , errorType: .typeMismatch(String .self))
+        self.startDecodePathTest(with: URL      .self, from: "%"        , errorType: .dataCorrupted)// invalid url
+        self.startDecodePathTest(with: Decimal  .self, from: "test"     , errorType: .typeMismatch(Double.self)) // try decode as Double
+        // .nan != .nan
+        self.startDecodePathTest(with: Date.self, from: "test", errorType: .typeMismatch(Date.self))
+        self.startDecodePathTest(with: Data.self, from: 1     , errorType: .typeMismatch(Data.self))
+
+        self.startDecodePathTest(with: Objects.VisualCheck.self         , from: "test"          , errorType: .valueNotFound(Objects.VisualCheck.self))
+        self.startDecodePathTest(with: Objects.KeyNotFoundCheck.self    , from: ["test": true]  , errorType: .keyNotFound(stringValue: "1000", intValue: 1000))
+        self.startDecodePathTest(with: Objects.UnkeyedIsAtEndCheck.self , from: [true]          , errorType: .valueNotFound(Objects.UnkeyedIsAtEndCheck.self))
     }
     
-    public struct VisualPathThrowing: Codable, Equatable {
+    func startEncodePathTest<T: Encodable>(with value: T) {
         
-        public init() {}
-        
-        public func encode(to encoder: Encoder) throws {
-            throw EncodingError.invalidValue(
-                (),
-                EncodingError.Context(
-                    codingPath: encoder.codingPath,
-                    debugDescription: "threw at user perceived path."
-                )
-            )
-        }
-        
-        public init(from decoder: Decoder) throws {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "threw at user perceived path."))
-        }
-        
-        public static func ==(lhs: TestExpectedPaths.VisualPathThrowing, rhs: TestExpectedPaths.VisualPathThrowing) -> Bool {
-            return true
-        }
+        self.encodePathTest(value, expected: type(of: value), currentCount: 0)
     }
     
-//    func startVisualPathTest(to fails: inout Fails) {
-//        self.startPathTest(for: VisualPathThrowing(), to: &fails)
-//    }
-    
-    // increments the currentCount in carryOverInfo
-    func increment<Expected: Codable & Equatable>(info: CarryOverInfo<Expected>) -> CarryOverInfo<Expected> {
-        return (info.expected, info.currentCount + 1)
+    func startDecodePathTest<T: Decodable, E>(with decodable: T.Type, from value: E, errorType: CoderTesting.DecodingErrorType) {
+        
+        self.decodePathTest(decodable, from: value, expected: decodable, errorType: errorType, currentCount: 0)
     }
     
-    /// test the paths of a throwing value
-    func pathTest<Expected: Codable & Equatable, C: Codable & Equatable>(_ value: C, _ info: CarryOverInfo<Expected>, to fails: inout Fails) {
+    func encodePathTest<T: Encodable, E: Encodable>(_ value: E, expected: T.Type, currentCount: Int) {
         
-        let r = try! CoderTesting.encodeStats(for: 1, in: [String: Int]())
-        
-//        let stats = try! CoderTesting.allStats(for: info.expected, in: value)
-        
-//        if stats.willCrashIfJSONEncoder {
-//            return
-//        }
-//
-//        switch stats.topLevelType {
-//        case .keyed, .unkeyed:
-//            /// in the standard tests, these paths are reversed in roles
-//            let expectedEncodePath: [CodingKey] = self.expectedEncodePath(for: value)
-//            let expectedDecodePath: [CodingKey] = self.expectedDecodePath(for: value)
-//
-////            let actualEncodePath: [CodingKey] = stats.encodePath
-////            let actualDecodePath: [CodingKey] = stats.decodePath
-//
-//            if let fail = CoderTesting.guardEqual(expected: expectedEncodePath, actual: actualEncodePath) {
-//                fails.add(CoderTesting.fail(at: "adding \(type(of: value))", failedWithReason: "unexpected encode path: " + fail.description))
-//            }
-//
-//            if let fail = CoderTesting.guardEqual(expected: expectedDecodePath, actual: actualDecodePath) {
-//                fails.add(CoderTesting.fail(at: "adding \(type(of: value))", failedWithReason: "unexpected decode path: " + fail.description))
-//            }
-//        default: break
-//        }
-        
-        if info.currentCount < 3 {
-            self.nestAndCallbackPathTest(value, carryOverInfo: self.increment(info: info), to: &fails)
-        }
-    }
-    
-    typealias CarryOverInfo<Expected: Codable & Equatable> = (expected: Expected, currentCount: Int)
-    
-    func nestAndCallbackPathTest<Expected: Codable & Equatable, C: Codable & Equatable>(_ value: C, carryOverInfo: CarryOverInfo<Expected>, to fails: inout Fails) {
-        
-//        self.pathTest(Objects.Single(value)               , carryOverInfo, to: &fails)
-//        self.pathTest(Objects.TestOptional(value)         , carryOverInfo, to: &fails)
-//        self.pathTest([1: value] as Objects.TestDictionary, carryOverInfo, to: &fails)
-//        self.pathTest(Objects.SubKeyed1(value)            , carryOverInfo, to: &fails)
-//        self.pathTest(Objects.SubKeyed2(value)            , carryOverInfo, to: &fails)
-//        self.pathTest([value] as Objects.TestArray        , carryOverInfo, to: &fails)
-//        self.pathTest(Objects.SubUnkeyed1(value)          , carryOverInfo, to: &fails)
-//        self.pathTest(Objects.SubUnkeyed2(value)          , carryOverInfo, to: &fails)
-//        self.pathTest(Objects.MultipleStore(value)        , carryOverInfo, to: &fails)
-    }
-    
-    private func expectedEncodePath<T: Encodable>(for value: T) -> [CodingKey] {
-        
-        do {
-            let encoder = self.newEncoder()
-            
-            encoder.dateEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
-            encoder.dataEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
-            
-            _ = try encoder.encode(value)
-            
-            fatalError("JSONEncoder failed to throw for \(type(of: value)): \(value)")
-            
-        } catch let error as EncodingError {
-            
-            return error.context.codingPath
-            
-        } catch {
-            fatalError()
-        }
-    }
-    
-    private func expectedDecodePath<T: Codable>(for value: T) -> [CodingKey] {
-        
-        // case keyed(stringValue: String, intValue: Int)
-        // case unkeyed(index: Int)
-        // case unkeyedIgnoreIndex
-        // case super
-        
-        
-        let data: Data
-        
-        do {
-            let encoder = newEncoder()
-            encoder.nonConformingFloatEncodingStrategy = .convertToString(positiveInfinity: "test", negativeInfinity: "test", nan: "test")
-            data = try encoder.encode(value)
-        } catch {
-            fatalError("JSONEncoder failed to encode: \(type(of: value)): \(value), reason: \(error)")
+        /// print where the fail is.
+        func willFail() {
+            print("will fail at:", type(of: value), expected)
         }
         
-        do {
+        let stats = try! CoderTesting.encodeStats(expected: expected, encodable: value)
+        
+        if stats.willCrashIfJSONEncoder {
+            return
+        }
+        
+        switch stats.topLevelType {
+        case .keyed, .unkeyed:
             
-            let decoder = self.newDecoder()
+            do {
+                
+                let encoder = self.newEncoder()
+                
+                encoder.dateEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
+                encoder.dataEncodingStrategy = .custom { throw EncodingError.invalidValue($0, EncodingError.Context(codingPath: $1.codingPath, debugDescription: "threw at path")) }
+                
+                _ = try encoder.encode(value)
+                
+                willFail()
+                XCTFail("failed to throw")
+                return
+                
+            } catch let error as EncodingError {
+                
+                guard type(of: error.value) == expected else {
+                    willFail()
+                    XCTFail("unexpected invalidValue: \(type(of: error.value)) expected: \(expected)")
+                    return
+                }
+                
+                if let fail = CoderTesting.guardEqual(expected: error.context.codingPath, actual: stats.codingPathOfFirstExpected!) {
+                    willFail()
+                    XCTFail(fail.description)
+                    return
+                }
+                
+            } catch {
+                willFail()
+                XCTFail("\(error)")
+                return
+            }
             
-            decoder.dateDecodingStrategy = .custom { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
-            decoder.dataDecodingStrategy = .custom { throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
+        case .single: break
+        }
+        
+        if currentCount < 3 {
+            self.encodePathTest(Objects.Single(value)                   , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.Keyed(key: 1, value: value)     , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubKeyed1(key: 1, value: value) , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubKeyed2(key: 1, value: value) , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.Unkeyed(value)                  , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubUnkeyed1(value)              , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.SubUnkeyed2(value)              , expected: expected, currentCount: currentCount + 1)
+            self.encodePathTest(Objects.MultipleStore(value)            , expected: expected, currentCount: currentCount + 1)
+        }
+    }
+
+    func decodePathTest<T: Decodable, D: Decodable, E>(_ decodable: D.Type, from value: E, expected: T.Type, errorType: CoderTesting.DecodingErrorType, currentCount: Int) {
+        
+        func willFail() {
+            print("will fail:", decodable, type(of: value), expected, errorType)
+        }
+        
+        let stats = try! CoderTesting.decodeStats(expected: expected, decodable: decodable)
+        
+        switch stats.topLevelType {
             
-            _ = try decoder.decode(T.self, from: data)
+        case .keyed, .unkeyed:
             
-            fatalError("JSONDecoder failed to throw for \(type(of: value)): \(value)")
+            do {
+                
+                guard JSONSerialization.isValidJSONObject(value) else {
+                    willFail()
+                    XCTFail("\(type(of: value)) is not a valid JSON object")
+                    return
+                }
+                
+                let data = try JSONSerialization.data(withJSONObject: value)
+                
+                let decoder = self.newDecoder()
+                
+                decoder.dateDecodingStrategy = .custom { throw DecodingError.typeMismatch(Date.self, DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
+                decoder.dataDecodingStrategy = .custom { throw DecodingError.typeMismatch(Data.self, DecodingError.Context(codingPath: $0.codingPath, debugDescription: "threw at path")) }
+                
+                _ = try decoder.decode(decodable, from: data)
+                
+                willFail()
+                XCTFail("failed to throw")
+                
+            } catch let error as DecodingError {
+                
+                guard errorType.isCorrect(error) else {
+                    willFail()
+                    XCTFail("incorrect error type. expected: \(errorType) actual: \(error)")
+                    return
+                }
+                
+                if let fail = CoderTesting.guardEqual(expected: error.context.codingPath, actual: stats.codingPathOfFirstExpected!) {
+                    willFail()
+                    XCTFail(fail.description)
+                    return
+                }
+            } catch {
+                willFail()
+                XCTFail("\(error)")
+            }
             
-        } catch let error as DecodingError {
+        default: break
+        }
+
+        if currentCount < 3 {
             
-            return error.context.codingPath
-            
-        } catch {
-            fatalError()
+            self.decodePathTest(Objects.Single<D>.self        , from: value                   , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.Keyed<Int, D>.self    , from: ["1": value]            , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubKeyed1<Int, D>.self, from: ["1": value]            , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubKeyed2<Int, D>.self, from: ["super": ["1": value]] , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.Unkeyed<D>.self       , from: [value]                 , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubUnkeyed1<D>.self   , from: [value]                 , expected: expected, errorType: errorType, currentCount: currentCount + 1)
+            self.decodePathTest(Objects.SubUnkeyed2<D>.self   , from: [[value]]               , expected: expected, errorType: errorType, currentCount: currentCount + 1)
         }
     }
         
@@ -497,74 +482,74 @@ class TestExpectedPaths: XCTestCase {
 //    }
 //
 //    func roundTrip<T: Codable>(_ start: T, isEqual: (T, T)->Bool) -> RoundTripFail? {
-//
-//        let value: Any
-//
-//        // value to Any
-//        do {
-//
-//            value = try self.encoder.encode(value: start)
-//
-//            guard let isValidClosure = isValidRepresentation[TypeId(T.self)] else {
-//                fatalError("no isValidRepresentation for \(T.self)")
-//            }
-//
-//            guard isValidClosure(value) else  {
-//                return RoundTripFail.valueToAny(RTError.invalidRepresentation(forOriginal: start, value: value))
-//            }
-//
-//        } catch {
-//
-//            return RoundTripFail.valueToAny(error)
-//
-//        }
-//
-//        // value to Data
-//
-//        let data: Data
-//
-//        do {
-//
-//            data = try self.encoder.encode(data: start)
-//
-//        } catch {
-//
-//            return RoundTripFail.valueToData(error)
-//
-//        }
-//
-//        // value from Data
-//
-//        do {
-//
-//            let result = try self.decoder.decode(T.self, from: data)
-//
-//            guard isEqual(start, result) else {
-//                return RoundTripFail.valueFromData(RTError.unequal(start, result))
-//            }
-//
-//        } catch {
-//
-//            return RoundTripFail.valueFromData(error)
-//        }
-//
-//        // value from Any
-//
-//        do {
-//
-//            let result = try self.decoder.decode(T.self, fromValue: value)
-//
-//            guard isEqual(start, result) else {
-//                return RoundTripFail.valueFromAny(RTError.unequal(start, result))
-//            }
-//
-//        } catch {
-//
-//            return RoundTripFail.valueFromAny(error)
-//
-//        }
-//
-//        return nil
+    //
+    //        let value: Any
+    //
+    //        // value to Any
+    //        do {
+    //
+    //            value = try self.encoder.encode(value: start)
+    //
+    //            guard let isValidClosure = isValidRepresentation[TypeId(T.self)] else {
+    //                fatalError("no isValidRepresentation for \(T.self)")
+    //            }
+    //
+    //            guard isValidClosure(value) else  {
+    //                return RoundTripFail.valueToAny(RTError.invalidRepresentation(forOriginal: start, value: value))
+    //            }
+    //
+    //        } catch {
+    //
+    //            return RoundTripFail.valueToAny(error)
+    //
+    //        }
+    //
+    //        // value to Data
+    //
+    //        let data: Data
+    //
+    //        do {
+    //
+    //            data = try self.encoder.encode(data: start)
+    //
+    //        } catch {
+    //
+    //            return RoundTripFail.valueToData(error)
+    //
+    //        }
+    //
+    //        // value from Data
+    //
+    //        do {
+    //
+    //            let result = try self.decoder.decode(T.self, from: data)
+    //
+    //            guard isEqual(start, result) else {
+    //                return RoundTripFail.valueFromData(RTError.unequal(start, result))
+    //            }
+    //
+    //        } catch {
+    //
+    //            return RoundTripFail.valueFromData(error)
+    //        }
+    //
+    //        // value from Any
+    //
+    //        do {
+    //
+    //            let result = try self.decoder.decode(T.self, fromValue: value)
+    //
+    //            guard isEqual(start, result) else {
+    //                return RoundTripFail.valueFromAny(RTError.unequal(start, result))
+    //            }
+    //
+    //        } catch {
+    //
+    //            return RoundTripFail.valueFromAny(error)
+    //
+    //        }
+    //
+    //        return nil
 //    }
 //
 //    func roundTrip<T: Codable & Equatable>(_ start: T) -> RoundTripFail? {

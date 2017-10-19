@@ -12,6 +12,23 @@ import XCTest
 import Retrolux
 
 
+//class TestURLEncoder2: XCTestCase, CoderTestCase {
+//
+//    func newEncoder() -> TopLevelEncoder {
+//        return URLEncoder()
+//    }
+//
+//    func newDecoder() -> TopLevelDecoder {
+//        return URLDecoder()
+//    }
+//
+//    func test() {
+//        //        if let fail = self.roundTripAsStrings(characterSets: [.decimalDigits, .controlCharacters, .capitalizedLetters, .letters], removeCharacters: "", compatibleContainer: {[1: $0]}) {
+//        //            XCTFail(fail.description)
+//        //        }
+//    }
+//}
+
 
 class TestURLDecoder: XCTestCase {
     

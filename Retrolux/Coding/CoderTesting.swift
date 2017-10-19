@@ -8,17 +8,47 @@
 
 import Foundation
 
-public protocol CoderTestCase {
-    
-    func newEncoder() -> TopLevelEncoder
-    func newDecoder() -> TopLevelDecoder
-}
+// MARK: CoderTesting
 
-public extension CoderTestCase {
+// a struct to hold various Testing values
+public struct CoderTesting {
     
-    typealias Objects = CoderTesting.Objects
+    public enum DecodingErrorType {
+        case dataCorrupted
+        case keyNotFound(stringValue: String, intValue: Int?)
+        case typeMismatch(Any.Type)
+        case valueNotFound(Any.Type)
+        
+        public func isCorrect(_ error: DecodingError) -> Bool {
+            
+            switch (self, error) {
+                
+            case (.dataCorrupted, .dataCorrupted(_)):
+                return true
+                
+            case (.keyNotFound(let stringValue, let intValue), .keyNotFound(let rhs, _)):
+                if stringValue == rhs.stringValue && intValue == rhs.intValue {
+                    return true
+                }
+                
+            case (.typeMismatch(let lhs), .typeMismatch(let rhs, _)):
+                if lhs == rhs {
+                    return true
+                }
+                
+            case (.valueNotFound(let lhs), .valueNotFound(let rhs, _)):
+                if lhs == rhs {
+                    return true
+                }
+                
+            default: break
+            }
+            
+            return false
+        }
+    }
     
-    func testingValues<T: SignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> Objects.CEArray<T> {
+    public static func testingValues<T: SignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> [T] {
         return [
             .max,
             .min,
@@ -30,7 +60,7 @@ public extension CoderTestCase {
         ]
     }
     
-    func testingValues<T: UnsignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> Objects.CEArray<T> {
+    public static func testingValues<T: UnsignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> [T] {
         return [
             .max,
             .min,
@@ -40,364 +70,76 @@ public extension CoderTestCase {
             220
         ]
     }
-
-    func testingValues<T: FloatingPoint & Codable>(for: T.Type) -> Objects.CEArray<T> {
-
+    
+    public static func testingValues<T: FloatingPoint & Codable>(for: T.Type) -> [T] {
+        
         let type = "\(T.self)"
-
-        var result: Objects.CEArray<T> = []
-
+        
+        var result: [T] = []
+        
         func add(_ value: T) {
             result.append(value)
             result.append(-value)
         }
-
+        
         add(.greatestFiniteMagnitude)
         add(.infinity)
         add(.leastNonzeroMagnitude)
         add(.leastNormalMagnitude)
         add(.nan)
-        add(.pi)
         add(.signalingNaN)
+        add(.pi)
         add(.ulpOfOne)
         add(0)
         add(123234)
-
+        
         return result
     }
     
-    var intValues   : Objects.CEArray<Int   > { return self.testingValues(for: Int   .self) }
-    var int8Values  : Objects.CEArray<Int8  > { return self.testingValues(for: Int8  .self) }
-    var int16Values : Objects.CEArray<Int16 > { return self.testingValues(for: Int16 .self) }
-    var int32Values : Objects.CEArray<Int32 > { return self.testingValues(for: Int32 .self) }
-    var int64Values : Objects.CEArray<Int64 > { return self.testingValues(for: Int64 .self) }
-    var uintValues  : Objects.CEArray<UInt  > { return self.testingValues(for: UInt  .self) }
-    var uint8Values : Objects.CEArray<UInt8 > { return self.testingValues(for: UInt8 .self) }
-    var uint16Values: Objects.CEArray<UInt16> { return self.testingValues(for: UInt16.self) }
-    var uint32Values: Objects.CEArray<UInt32> { return self.testingValues(for: UInt32.self) }
-    var uint64Values: Objects.CEArray<UInt64> { return self.testingValues(for: UInt64.self) }
-    var floatValues : Objects.CEArray<Float > { return self.testingValues(for: Float .self) }
-    var doubleValues: Objects.CEArray<Double> { return self.testingValues(for: Double.self) }
-//
-////    func path<T: Codable>(_ values: [T]) -> CustomStringConvertible? {
-////
-////        var fails = Testing.Coding.Fails()
-////
-////        for value in values {
-////            if let fail = path(value) {
-////                fails.add(fail)
-////            }
-////        }
-////
-////        return fails
-////    }
-//
-//    func pathTest<T: Codable>(topLevelAndNested v: T) -> CustomStringConvertible? {
-//
-//        typealias O = Objects<String, Int, T>
-//
-//        var fails: [String] = []
-//
-//        func add<T: Codable>(_ value: T) {
-//
-//            if let fail = pathTest(value) {
-//                fails.append(fail.description)
-//            }
-//        }
-//
-//        add(v)
-//
-//        add([v])
-//        add([[[[v]]]])
-//
-//        add(["1": v])
-//        add(["1": ["1": v]])
-//        add(["1": ["1": ["1": v]]])
-//
-//        add(["1": [["1": v]]])
-//
-//        add([["1": v]])
-//        add(["1": [v]])
-//        add([["1": ["1": v]]])
-//        add(["1": [["1": v]]])
-//
-//        add(O.Single(value1: "test", value2: Int.max, value3: v))
-//        add(O.Keyed(value1: "test", value2: Int.min, value3: v))
-//        add(O.Unkeyed(value1: "", value2: -0, value3: v))
-//        // crashes. internal error
-//        //        add(pathTest: O.NestedKeyed(value1: "asdasudhg-=0", value2: 13208, value3: .init()))
-//        //        add(pathTest: O.NestedUnkeyed(value1: "asdpa.1v4", value2: -198714, value3: .init()))
-//        add(O.SubKeyed(value1: "asdpa.1v4", value2: -198714, value3: v))
-//        add(O.SubSubKeyed(value1: "asdpa.1v4", value2: -198714, value3: v))
-//        add(O.SubUnkeyed(value1: "asdpa.1v4", value2: -198714, value3: v))
-//        add(O.SubSubUnkeyed(value1: "asdpa.1v4", value2: -198714, value3: v))
-//
-//        if fails.isEmpty {
-//            return nil
-//        } else {
-//            return "\n\n\(fails.count) fails for \(T.self): \(v)\n" + fails.joined(separator: "\n\n")
-//        }
-//    }
-//
-//    typealias Fails = Testing.Coding.Fails
-//
-//    func startLoggingFails(forTest description: String) -> Fails {
-//
-//        return Fails.init(forTest: description)
-//    }
-//
-//    public func basicPathTest() -> CustomStringConvertible? {
-//
-//        var fails = self.startLoggingFails(forTest: "basicPathTests")
-//
-//        let v = Testing.Coding.TestObject()
-//
-//        func add<T: Codable>(_ value: T) {
-//
-//            fails.add(self.pathTest(topLevelAndNested: value))
-//        }
-//
-//        add(v)
-//
-//        return fails.result
-//    }
-//
-//    public func pathTest<T: Codable>(_ value: T) -> CustomStringConvertible? {
-//
-//        let expectedPath = self.expectedPath(for: value)
-//
-//        var encoder = self.newEncoder()
-//
-//        do {
-//
-//            _ = try encoder.encode(value: value)
-//
-//            return Testing.Coding.Path.Fail.encode(value, .didNotThrow)
-//
-//        } catch let EncodingError.invalidValue(_, context) {
-//
-//            if let incorrectPath = self.equalPaths(expected: context.codingPath, received: expectedPath) {
-//
-//                return Testing.Coding.Path.Fail.encode(value, .incorrectPath(incorrectPath, codingPath: context.codingPath, expected: expectedPath))
-//            }
-//
-//        } catch {
-//
-//            fatalError("\(type(of: encoder)) did not throw an EncodingError while encoding \(type(of: value)): \(value), error: \(error)")
-//        }
-//
-//        let decoder = self.newDecoder()
-//
-//        encoder.userInfo.testingThrow = false
-//
-//        let _value: Any
-//
-//        do {
-//            _value = try encoder.encode(value: value)
-//
-//        } catch let error as EncodingError {
-//
-//            return Testing.Coding.Path.Fail.encode(value, .failedToEncodeForDecoder(error: error))
-//
-//        } catch {
-//
-//            fatalError("\(type(of: encoder)) did not throw an EncodingError while encoding for decoder \(type(of: value)): \(value), error: \(error)")
-//        }
-//
-//        do {
-//
-//            _ = try decoder.decode(T.self, fromValue: _value)
-//
-//            return Testing.Coding.Path.Fail.decode(value, .didNotThrow)
-//
-//        } catch let error as DecodingError {
-//
-//            if let incorrectPath = self.equalPaths(expected: expectedPath, received: error.context.codingPath) {
-//                return Testing.Coding.Path.Fail.decode(value, .incorrectPath(incorrectPath, codingPath: error.context.codingPath, expected: expectedPath))
-//            }
-//
-//        } catch {
-//
-//            fatalError("\(type(of: encoder)) did not throw an EncodingError while decoding \(type(of: value)): \(value), error: \(error)")
-//        }
-//
-//        return nil
-//    }
+    public static var intValues   : Array<Int   > { return self.testingValues(for: Int   .self) }
+    public static var int8Values  : Array<Int8  > { return self.testingValues(for: Int8  .self) }
+    public static var int16Values : Array<Int16 > { return self.testingValues(for: Int16 .self) }
+    public static var int32Values : Array<Int32 > { return self.testingValues(for: Int32 .self) }
+    public static var int64Values : Array<Int64 > { return self.testingValues(for: Int64 .self) }
+    public static var uintValues  : Array<UInt  > { return self.testingValues(for: UInt  .self) }
+    public static var uint8Values : Array<UInt8 > { return self.testingValues(for: UInt8 .self) }
+    public static var uint16Values: Array<UInt16> { return self.testingValues(for: UInt16.self) }
+    public static var uint32Values: Array<UInt32> { return self.testingValues(for: UInt32.self) }
+    public static var uint64Values: Array<UInt64> { return self.testingValues(for: UInt64.self) }
+    public static var floatValues : Array<Float > { return self.testingValues(for: Float .self) }
+    public static var doubleValues: Array<Double> { return self.testingValues(for: Double.self) }
     
-    /// tests a value that should be able to be encoded and then decoded from the result
-    func roundTrip<T: Codable & Equatable>(_ value: T) -> CustomStringConvertible? {
+    /// splits all the characters in the character sets into a string with a max length of maxCharactersInEachString and a description of the string in it's characterSet.
+    /// WARNING! printing this result may freeze the app for a few minutes! print and use only one value at a time.
+    public static func stringValues(from characterSets: [CharacterSet], removeCharacters: String, maxCharactersInEachString: Int = 50) -> [(stringToEncode: String, description: String)] {
         
-        let _value: Any
-        
-        do {
-            _value = try self.newEncoder().encode(value: value)
-        } catch {
-            return "failed encode with error: \(error)"
-        }
-        
-        let data: Data
-        
-        do {
-            data = try self.newEncoder().encode(value)
-        } catch {
-            return "failed encode to data with error: \(error)"
-        }
-        
-        do {
-            let result = try self.newDecoder().decode(T.self, fromValue: _value)
-            
-            guard result == value else {
-                return "failed decode. result: \(result) not equal to value: \(value)"
-            }
-            
-        } catch {
-            return "failed decode with error: \(error)"
-        }
-        
-        do {
-            let result = try self.newDecoder().decode(T.self, from: data)
-            
-            guard result == value else {
-                return "failed decode from data. result: \(result) not equal to value: \(value)"
-            }
-            
-        } catch {
-            return "failed decode from data with error: \(error)"
-        }
-        
-        return nil
-    }
-    
-    /// splits the character sets into manageable strings and returns the first roundTrip fail in a custom description or nil
-    func roundTripAsStrings<T: Codable & Equatable>(characterSets: [CharacterSet], removeCharacters: String, compatibleContainer: (String)->T) -> CustomStringConvertible? {
+        var result: [(String, String)] = []
         
         for characterSet in characterSets {
             
             var subCharacterSet = characterSet
-
+            
             subCharacterSet.remove(charactersIn: removeCharacters)
-
+            
             let allCharacters = subCharacterSet.allCharacters()
-
+            
             var counter = 0
-
-            while let nextSequence = allCharacters.slice(at: counter, count: 50) {
+            
+            while let charactersToEncode = allCharacters.slice(at: counter, count: maxCharactersInEachString) {
                 counter += 1
-
-                let currentEncodingString = String(nextSequence)
                 
-                let value = compatibleContainer(currentEncodingString)
+                let __add = (removeCharacters.isEmpty ? "" : " with removed characters: " + removeCharacters)
                 
-                if let fail = self.roundTrip(value) {
-                    
-                    let currentEncodingString = currentEncodingString.characters.map { String($0) }.joined(separator: " ")
-                    
-                    let removedCharacters = (removeCharacters.isEmpty ? "" : " with removed characters: \(removeCharacters)")
-                    
-                    return "\(characterSet)\(removedCharacters) failed roundTrip in container type: \(type(of: value)) (with reason: \(fail)), currently encoding (without spaces): \(currentEncodingString)"
-                }
+                let stringToEncode = String(charactersToEncode)
+                
+                let descriptionOfString = stringToEncode.map { $0.description }.joined(separator: " ")
+                
+                result.append((stringToEncode, "\(characterSet.description + __add) current value: \(descriptionOfString)"))
             }
         }
         
-        return nil
+        return result
     }
-    
-    
-    
-//    typealias P = CoderTesting.Parameter
-//    
-//    func encodePathTest<Expected: Encodable & Equatable, E: Encodable>(for expected: Expected, in encodable: E) -> CustomStringConvertible? {
-//        
-//        let here = "\(type(of: self)).\(#function)"
-//        let parameters = [P("for expected", expected),
-//                          P("in encodable", encodable)]
-//        
-//        let expectedPath = CoderTesting.expectedEncodePath(for: expected, in: encodable)
-//        
-//        let encoder = self.newEncoder()
-//        
-//        do {
-//            
-//            _ = try encoder.encode(value: encodable)
-//            
-//            return CoderTesting.fail(
-//                at: here,
-//                with: parameters,
-//                failedWithReason:
-//                "\(type(of: encoder)) did not throw"
-//            )
-//            
-//        } catch let error as EncodingError {
-//            
-//            if let fail = CoderTesting.guardEqual(expected: expectedPath, actual: error.context.codingPath) {
-//                
-//                return CoderTesting.fail(
-//                    at: here,
-//                    with: parameters,
-//                    failedWithReason: fail
-//                )
-//                
-//            } else {
-//                return nil
-//            }
-//            
-//        } catch {
-//            return CoderTesting.fail(
-//                at: here,
-//                with: parameters,
-//                failedWithReason: "\(type(of: encoder)) threw a non-EncodingError: \(error)"
-//            )
-//        }
-//    }
-//    
-//    func decodePathTest<Expected: Codable & Equatable, C: Codable, Encoded: Equatable>(for expected: Expected, in codable: C, whereEncoded encoded: Encoded) -> CustomStringConvertible? {
-//        
-//        let here = "\(type(of: self)).\(#function)"
-//        let parameters = [
-//            P.init("for expected", expected),
-//            P.init("in codable", codable),
-//            P.init("whereEncoded", encoded)
-//        ]
-//        
-//        let expectedPath = CoderTesting.expectedDecodePath(for: expected, in: codable)
-//        
-//        let decoder = self.newDecoder()
-//        
-//        do {
-//            _ = try decoder.decode(type(of: codable), fromValue: encoded)
-//            
-//            return CoderTesting.fail(
-//                at: here,
-//                with: parameters,
-//                failedWithReason: "\(type(of: decoder)) did not throw"
-//            )
-//            
-//        } catch let error as DecodingError {
-//            
-//            if let fail = CoderTesting.guardEqual(expected: expectedPath, actual: error.context.codingPath) {
-//                return CoderTesting.fail(
-//                    at: here,
-//                    with: parameters,
-//                    failedWithReason: fail.description
-//                )
-//            } else {
-//                return nil
-//            }
-//            
-//        } catch {
-//            return CoderTesting.fail(
-//                at: here,
-//                with: parameters,
-//                failedWithReason: "\(type(of: decoder)) threw a non-DecodingError: \(error)"
-//            )
-//        }
-//    }
-}
-
-// MARK: CoderTesting
-
-// a struct to hold various Testing values
-public struct CoderTesting {
     
     public static func guardEqual(expected: [CodingKey], actual: [CodingKey]) -> CustomStringConvertible? {
         
@@ -413,7 +155,7 @@ public struct CoderTesting {
             
             let key1 = expectedKeyAtIndex.element
             
-            guard key1.isEqual(to: key2) else {
+            guard key1 == key2 else {
                 
                 func description(for key: CodingKey) -> String {
                     return "\(type(of: key))(stringValue: \(key.stringValue), intValue: \(key.intValue?.description ?? "nil"))"
@@ -439,51 +181,19 @@ public struct CoderTesting {
         return nil
     }
     
-    public static func fail(at place: CustomStringConvertible, with parameters: [Parameter] = [], failedWithReason failReason: CustomStringConvertible) -> CustomStringConvertible {
-        
-        let parameterDescription = (parameters.isEmpty ? "" : "\nwith parameters:\n\(parameters.map { $0.description }.joined(separator: "\n"))")
-        
-        return """
-        at: \(place.description)\(parameterDescription)
-        failedWithReason:
-        \(failReason)
-        """
-    }
-    
-    public struct Parameter {
-        var description: String
-        init(_ parameterDescription: String, _ value: Any) {
-            self.description = parameterDescription + ": \(type(of: value)): \(value)"
-        }
-        init(_ parameterDescription: String, _ type: Any.Type) {
-            self.description = parameterDescription + ": \(type)"
-        }
-    }
-    
     // MARK: CodingStats
     
-    class EncoderSharedOptions {
-        var willCrashIfJSONEncoder: Bool = false
-    }
-    
-    public enum EncodedType {
+    public enum CodedType {
         case single
         case unkeyed
         case keyed
     }
     
-    class VoidEncoderOptions<Expected> {
+    class VoidEncoderOptions {
         
-        var expected: Expected
-        var throwAtExpected: Bool = true
+        var topLevelType: CodedType = .single
         
-        init(_ expected: Expected) {
-            self.expected = expected
-        }
-        
-        var topLevelType: EncodedType = .single
-        
-        func checkTopLevel(_ newType: EncodedType) {
+        func checkTopLevel(_ newType: CodedType) {
             if self.topLevelType == .single && newType != .single {
                 self.topLevelType = newType
             }
@@ -492,19 +202,27 @@ public struct CoderTesting {
         lazy var willCrashIfJSONEncoder: Bool = false
     }
     
+    public typealias EncodeStats = (codingPathOfFirstExpected: [CodingKey]?, willCrashIfJSONEncoder: Bool, topLevelType: CodedType)
+    public typealias DecodeStats = (codingPathOfFirstExpected: [CodingKey]?, topLevelType: CodedType)
+    
+    public struct NotEncodable: Encodable {}
+    
     /**
-     Encodes the encodable looking for equal expected and throwing at that path
-     crashes if encodable does not encode the expected value
-     rethrows unknown errors
+     returns:
+     codingPath: the codingPath of the first expected type encountered
+     willCrashIfJSONEncoder: whether JSONEncoder will crash: "Reference encoder deallocated with multiple values in storage."
+     topLevelType: the top container type of the encoded value
+     
+     rethrows unknown errors.
      */
-    public static func encodeStats<Expected: Encodable & Equatable, E: Encodable>(for expected: Expected, in encodable: E, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> (encodePath: [CodingKey], willCrashIfJSONEncoder: Bool, topLevelType: EncodedType) {
+    public static func encodeStats<T: Encodable, E: Encodable>(expected: T.Type, encodable: E, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> EncodeStats {
         
-        let encoder = VoidEncoder(options: VoidEncoderOptions(expected), userInfo: userInfo)
+        let encoder = VoidEncoder<T>(options: VoidEncoderOptions(), userInfo: userInfo)
         
         do {
             _ = try encoder.start(with: encodable)
             
-            fatalError("\(type(of: encodable)) did not encode an equal \(type(of: expected)): \(expected) for path.")
+            return (nil, encoder.options.willCrashIfJSONEncoder, encoder.options.topLevelType)
             
         } catch let error as EncodingError {
             
@@ -517,102 +235,52 @@ public struct CoderTesting {
         }
     }
     
-    /// throws at first decode of Expected.Type.  Can only decode 2 values from unkeyed container.  There are 2 keys in keyed container, but unlimited values
-    public static func decodeStats<Expected: Decodable, D: Decodable>(for: Expected.Type, in: D.Type, userInfo: [CodingUserInfoKey: Any]) throws -> (decodePath: [CodingKey], Void) {
+    class VoidDecoderOptions {
+        var topLevelType: CodedType = .single
         
-        let decoder = VoidDecoder<Expected>(userInfo: userInfo)
+        func checkTopLevel(_ newType: CodedType) {
+            if self.topLevelType == .single && newType != .single {
+                self.topLevelType = newType
+            }
+        }
+    }
+    
+    /**
+     returns:
+     codingPath: the codingPath of the first expected type encountered
+     
+     rethrows unknown errors
+     
+     cannot decode more than two values from an unkeyed container
+     cannot decode from more than two values in a keyed container
+    */
+    public static func decodeStats<T: Decodable, D: Decodable>(expected: T.Type, decodable: D.Type, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> DecodeStats {
+        
+        let decoder = VoidDecoder<T>(options: VoidDecoderOptions(), userInfo: userInfo)
         
         do {
             _ = try decoder.start(with: ()) as D
-            fatalError("\(D.self) did not decode type: \(Expected.self)")
+            
+            return (nil, decoder.options.topLevelType)
             
         } catch let error as DecodingError {
             
             if error.context.debugDescription == sharedThrowDescription {
-                return (error.context.codingPath, ())
+                return (error.context.codingPath, decoder.options.topLevelType)
             } else {
                 throw error
             }
         }
     }
     
-    /// because the value can also be encoded,
-    public static func allStats() {
-        
-        
-        
-        
-    }
+    // MARK: VoidEncoder
     
+    /// the debug description to tell stats to catch this codingPath
+    public static var sharedThrowDescription = "Threw error at expected codingPath"
     
-//
-//    private static func _encode<Expected: Encodable & Equatable, E: Encodable>(for expected: Expected, in encodable: E, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> (stats: EncodeStats, encoded: Any) {
-//            
-//        let (encodePath, willCrash) = try self.encodePath(for: expected, in: encodable, userInfo: userInfo)
-//        
-//        let encoded = try VoidEncoder(options: (expected: expected, shared: EncoderSharedOptions(), throw: false), userInfo: userInfo).start(with: encodable)
-//        
-//        return (
-//            (
-//                encodePath,
-//                willCrash,
-//                { () -> EncodedType in
-//                    
-//                    switch encoded {
-//                    case is NSArray: return .unkeyed
-//                    case is NSDictionary: return .keyed
-//                    default: return .single
-//                    }
-//                }()
-//            ),
-//            encoded
-//        )
-//    }
-//    
-//    public typealias EncodeStats = (encodePath: [CodingKey], willCrashIfJSONEncoder: Bool, topLevelType: EncodedType)
-//    
-//    public static func encodeStats<Expected: Encodable & Equatable, E: Encodable>(for expected: Expected, in encodable: E, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> EncodeStats {
-//        
-//        return try self._encode(for: expected, in: encodable, userInfo: userInfo).stats
-//    }
-//    
-//    private static var _decodingTestDebugDescription = "threw at codingPath"
-//    
-//    public typealias AllStatsResult = (encodePath: [CodingKey], decodePath: [CodingKey], willCrashIfJSONEncoder: Bool, topLevelType: EncodedType)
-//    
-//    /// because the stats Decoder cannot decode from a different encoded value, the values have to be codable to pass through the stats Encoder first
-//    public static func allStats<Expected: Codable & Equatable, C: Codable>(for expected: Expected, in codable: C, userInfo: [CodingUserInfoKey: Any] = [:]) throws -> AllStatsResult {
-//        
-//        let (encodeStats, encoded) = try self._encode(for: expected, in: codable, userInfo: userInfo)
-//        
-//        do {
-//            let result = try VoidDecoder<Expected>(options: (), userInfo: userInfo).start(with: encoded) as C
-//            print(result)
-//            fatalError("decoder could not find an encoded value for \(Expected.self) in \(type(of: codable))")
-//            
-//        } catch let error as DecodingError {
-//            
-//            if error.context.debugDescription == self._decodingTestDebugDescription {
-//                
-//                return (
-//                    encodeStats.encodePath,
-//                    error.context.codingPath,
-//                    encodeStats.willCrashIfJSONEncoder,
-//                    encodeStats.topLevelType
-//                )
-//            } else {
-//                throw error
-//            }
-//        }
-//    }
-    
-    // MARK: ExpectedPathEncoder
-    
-    private static var sharedThrowDescription = "Threw error at expected value"
-    
-    private class VoidEncoder<Expected: Encodable & Equatable>: EncoderBase {
+    private class VoidEncoder<Expected: Encodable>: EncoderBase {
         
-        typealias Options = VoidEncoderOptions<Expected>
+        typealias Options = VoidEncoderOptions
         
         var codingPath: [CodingKey]
         var options: Options
@@ -633,39 +301,41 @@ public struct CoderTesting {
             return true
         }
         
-        func check<T>(_ value: T, at codingPath: [CodingKey]) throws -> Any {
+        func check<T: Encodable>(_ value: T, at codingPath: [CodingKey]) throws {
             
-            if value as? Expected == self.options.expected {
+            if value is Expected {
                 
-                if self.options.throwAtExpected {
-                    throw EncodingError.invalidValue((), EncodingError.Context(codingPath: codingPath, debugDescription: sharedThrowDescription))
-                } else {
-                    return "encoded"
+                if value is CoderTestingSelfThrowingValue {
+                    
+                    _ = try self.reencode(value, at: codingPath)
+                    
+                    fatalError("\(type(of: value)) conforms to CoderTestingSelfThrowingValue but did not throw")
                 }
                 
-            } else {
-                return ()
+                throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: codingPath, debugDescription: sharedThrowDescription))
             }
         }
         
-        func boxNil(              at codingPath: [CodingKey]) throws -> Any { return try self.check(NSNull(), at: codingPath) }
-        func box(_ value: Bool  , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Int   , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Int8  , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Int16 , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Int32 , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Int64 , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: UInt  , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: UInt8 , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: UInt16, at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: UInt32, at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: UInt64, at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Float , at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: Double, at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
-        func box(_ value: String, at codingPath: [CodingKey]) throws -> Any { return try self.check(value, at: codingPath) }
+        func boxNil(              at codingPath: [CodingKey]) throws -> Any { return NSNull() }
+        func box(_ value: Bool  , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Int   , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Int8  , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Int16 , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Int32 , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Int64 , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: UInt  , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: UInt8 , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: UInt16, at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: UInt32, at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: UInt64, at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Float , at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: Double, at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
+        func box(_ value: String, at codingPath: [CodingKey]) throws -> Any { try self.check(value, at: codingPath) ; return () }
         func box<T>(_ value: T, at codingPath: [CodingKey]) throws -> Any where T : Encodable {
             
-            return try self.check(value, at: codingPath) as? String ?? self.box(default: value, at: codingPath)
+            try self.check(value, at: codingPath)
+            
+            return try self.box(default: value, at: codingPath)
         }
         
         // need to break the storage count fix to test if JSONEncoder will crash
@@ -723,10 +393,11 @@ public struct CoderTesting {
         }
     }
     
-    /// a Decoder that throws if Expected.Type is decoded or decodes empty initialized values
-    private class VoidDecoder<Expected: Decodable>: DecoderBase {
+    // MARK: VoidDecoder
+    
+    private class VoidDecoder<U: Decodable>: DecoderBase {
         
-        typealias Options = ()
+        typealias Options = VoidDecoderOptions
         
         var codingPath: [CodingKey]
         var options: Options
@@ -744,17 +415,18 @@ public struct CoderTesting {
             return true
         }
         
-        var decodingFromVoid: Bool = false
-        
-        func start<T>(with value: Any) throws -> T where T : Decodable {
-            self.decodingFromVoid = value is Void
-            return try self.unbox(value, at: [])
-        }
-        
-        func check<T>(_ value: Any, to: T.Type, at codingPath: [CodingKey]) throws {
+        func check<T: Decodable>(_ value: Any, to: T.Type, at codingPath: [CodingKey]) throws {
             
-            if T.self is Expected.Type && (self.decodingFromVoid || value as? String == "encoded") {
-                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: sharedThrowDescription))
+            if T.self == U.self {
+                
+                if T.self is CoderTestingSelfThrowingValue.Type {
+                    
+                    _ = try self.redecode(value, at: codingPath) as T
+                    
+                    fatalError("\(T.self) conforms to CoderTestingSelfThrowingValue but did not throw")
+                }
+                
+                throw DecodingError.typeMismatch(T.self, DecodingError.Context(codingPath: codingPath, debugDescription: sharedThrowDescription))
             }
         }
         
@@ -779,101 +451,49 @@ public struct CoderTesting {
             return try self.unbox(default: value, at: codingPath)
         }
         
-        func keyedContainerContainer(_ value: Any, at codingPath: [CodingKey], _ containerDescription: String) throws -> DecoderKeyedContainerContainer {
-            
-            if self.decodingFromVoid {
-                return LimitedContainer()
-            } else if let value = value as? NSDictionary {
-                return value
-            } else {
-                throw self.failedToUnbox(value, to: NSDictionary.self, containerDescription, at: codingPath)
-            }
+        func keyedContainerContainer(_ value: Any, at codingPath: [CodingKey], nested: Bool) throws -> DecoderKeyedContainerContainer {
+            self.options.checkTopLevel(.keyed)
+            return LimitingKeyedContainer()
         }
         
-        func unkeyedContainerContainer(_ value: Any, at codingPath: [CodingKey], _ containerDescription: String) throws -> DecoderUnkeyedContainerContainer {
-            
-            if self.decodingFromVoid {
-                return LimitedContainer()
-            } else if let value = value as? NSArray {
-                return value
-            } else {
-                throw self.failedToUnbox(value, to: NSArray.self, containerDescription, at: codingPath)
-            }
+        func unkeyedContainerContainer(_ value: Any, at codingPath: [CodingKey], nested: Bool) throws -> DecoderUnkeyedContainerContainer {
+            self.options.checkTopLevel(.unkeyed)
+            return LimitingUnkeyedContainer()
         }
     }
     
-    /// a container that returns Void with 2 values
-    /// returns Void to avoid throwing a value not found unless the value is an array.
-    private class LimitedContainer: DecoderKeyedContainerContainer, DecoderUnkeyedContainerContainer {
-        var maxCount: Int {
-            return 2
-        }
+    private static var maxCount: Int = 2
+    
+    /// an unkeyed container that has limited decodable values
+    private struct LimitingUnkeyedContainer: DecoderUnkeyedContainerContainer {
         
         func fromStorage(_ index: Int) -> Any { return () }
-        var storageCount: Int? { return self.maxCount }
-        func isAtEnd(index: Int) -> Bool { return index < self.maxCount }
-        
-        func value(forStringValue key: String) -> Any? { return () }
-        func value(forIntValue key: Int) -> Any? { return () }
-        var stringValueKeys: [String] { return [String](repeating: "", count: self.maxCount) }
-        var intValueKeys: [Int] { return [Int](repeating: 0, count: self.maxCount) }
+        var storageCount: Int? { return maxCount }
+        func isAtEnd(index: Int) -> Bool { return index >= maxCount }
     }
     
-    
-    // MARK: Fails
-    
-    /// a value for automatic pretty printed test fails
-    public struct Fails {
+    /// a keyed container that has limited decodable keys
+    private struct LimitingKeyedContainer: DecoderKeyedContainerContainer {
         
-        public var test: String
-        public var max: UInt32
-        
-        public init(forTest test: String, max: UInt32) {
-            self.test = test
-            self.max = max
-        }
-        
-        private var fails: [CustomStringConvertible] = []
-        
-        var isEmpty: Bool {
-            return self.fails.isEmpty
-        }
-        
-        public mutating func add(_ test: CustomStringConvertible?) {
-            
-            if let fail = test {
-                self.fails.append(fail)
-            }
-        }
-        
-        public mutating func add(_ fail: CustomStringConvertible) {
-            
-            self.fails.append(fail)
-        }
-        
-        /// returns the errors, limited by count or nil if empty
-        public mutating func result() -> CustomStringConvertible? {
-            defer { self.fails.removeAll() }
-            return self.current()
-        }
-        
-        public func current() -> CustomStringConvertible? {
-            
-            let count = UInt32(self.fails.count)
-            
-            if self.isEmpty {
-                return nil
-                
-            } else if count > self.max {
-                
-                let fails = self.fails.slice(at: 0, count: Int(self.max))!
-                
-                return "\n\n\(fails.count) out of \(count) fails for: \(self.test)\n\n" + fails.enumerated().map { "\($0): \($1)" }.joined(separator: "\n\n") + "\n\n"
-                
+        func value(forStringValue key: String) -> Any? {
+            if let key = Int(key) {
+                return intValueKeys.contains(key) ? () : nil
             } else {
-                
-                return "\n\n\(count) fails for: \(self.test)\n\n" + self.fails.enumerated().map { "\($0): \($1)" }.joined(separator: "\n\n") + "\n\n"
+                return nil
             }
+        }
+        func value(forIntValue key: Int) -> Any? {
+            return intValueKeys.contains(key) ? () : nil
+        }
+        var stringValueKeys: [String] {
+            return intValueKeys.map { $0.description }
+        }
+        var intValueKeys: [Int] {
+            var keys = [] as [Int]
+            for i in 1...maxCount {
+                keys.append(i)
+            }
+            return keys
         }
     }
     
@@ -881,94 +501,26 @@ public struct CoderTesting {
     
     public struct Objects {
         
-        public typealias TestObject = CodableTestObject
-        public typealias NestableTestObject = CoderNestableTestObject
+        // MARK: NotAKey
+        
+        public struct NotAKey: CodingKey {
+            public var stringValue: String {
+                fatalError("\(self)")
+            }
+            public init?(stringValue: String) {
+                fatalError("\(self)")
+            }
+            public var intValue: Int? {
+                fatalError("\(self)")
+            }
+            public init?(intValue: Int) {
+                fatalError("\(self)")
+            }
+        }
         
         // MARK: Single
         
-        // a codable and equatable optional that is never nil
-        public struct NestableOptional<T: TestObject>: NestableTestObject {
-            
-            public var value: T
-            
-            public init(_ value: T) {
-                self.value = value
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                try Optional.some(self.value).__encode(to: encoder)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                switch try Optional<T>(__from: decoder) {
-                case .some(let value): self.value = value
-                case .none:
-                    throw DecodingError.dataCorrupted(
-                        DecodingError.Context(
-                            codingPath: decoder.codingPath,
-                            debugDescription: "Failed to get value from decoded"
-                        )
-                    )
-                }
-            }
-            
-            public static func ==(lhs: NestableOptional, rhs: NestableOptional) -> Bool {
-                return lhs.value == rhs.value
-            }
-        }
-        
-        // A codable and equatable Optional
-        public enum CEOptional<Wrapped: TestObject>: TestObject, ExpressibleByNilLiteral {
-            
-            case some(Wrapped)
-            case none
-            
-            public init(_ wrapped: Wrapped) {
-                self = .some(wrapped)
-            }
-
-            public func asOptional() -> Wrapped? {
-                switch self {
-                case .some(let wrapped): return wrapped
-                case .none: return nil
-                }
-            }
-            
-            // ExpressibleByNilLiteral
-            
-            public init(nilLiteral: ()) {
-                self = .none
-            }
-            
-            // Codable
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                try self.asOptional().__encode(to: encoder)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                switch try Optional<Wrapped>(__from: decoder) {
-                case .some(let wrapped): self = .some(wrapped)
-                case .none: self = .none
-                }
-            }
-            
-            // Equatable
-            
-            public static func ==(lhs: CEOptional, rhs: CEOptional) -> Bool {
-                return lhs.asOptional() == rhs.asOptional()
-            }
-        }
-        
-        public struct Single<T: TestObject>: NestableTestObject {
+        public struct Single<T>: Codable {
             
             public var value: T
             
@@ -981,227 +533,281 @@ public struct CoderTesting {
             public func encode(to encoder: Encoder) throws {
                 
                 var container = encoder.singleValueContainer()
-
-                try container.encode(self.value)
                 
-                // cannot use value.encode(to:) because encoder needs to encode value, not value's value
-//                try self.value.encode(to: encoder)
+                assertTypeIsEncodable(T.self, in: Single.self)
+                
+                try (self.value as! Encodable).__encode(to: &container)
             }
             
             public init(from decoder: Decoder) throws {
                 
                 let container = try decoder.singleValueContainer()
-
-                self.value = try container.decode(T.self)
                 
-                // cannot use T(from:) because decoder needs to decode T, not T's value
-//                self.value = try T(from: decoder)
-            }
-            
-            // Equatable
-            
-            public static func ==(lhs: Single, rhs: Single) -> Bool {
-                return lhs.value == rhs.value
+                assertTypeIsDecodable(T.self, in: Single.self)
+                
+                self.value = try (T.self as! Decodable.Type).init(__from: container) as! T
             }
         }
         
         // MARK: Keyed
         
-        /// a codable and equatable dictionary that can only be created from a single value for path testing
-        public struct NestableDictionary<K: Hashable, T: TestObject>: NestableTestObject {
-            
-            private var key: K
-            private var value: T
-            
-            public init(_ value: T) {
-                
-                switch K.self {
-                case is Int.Type: self.key = 1 as! K
-                case is String.Type: self.key = "1" as! K
-                default: fatalError("Unable to create default key for \(K.self) in TestDictionary<\(K.self), \(T.self)> use init(key: value:) or init with String or Int as Key type")
-                }
-                
-                self.value = value
-            }
-            
-            public init(key: K, value: T) {
-                self.key = key
-                self.value = value
-            }
-            
-            // Codable
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                try [self.key: self.value].__encode(to: encoder)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                // FIXME: use default when SR-5206 is fixed
-                let values = try Dictionary<K, T>(__from: decoder)
-                guard values.count == 1 else {
-                    throw DecodingError.dataCorrupted(
-                        DecodingError.Context(
-                            codingPath: decoder.codingPath,
-                            debugDescription: "Failed to get value from decoded"
-                        )
-                    )
-                }
-                self.key = values.first!.key
-                self.value = values.first!.value
-            }
-            
-            // Equatable
-            
-            public static func ==(lhs: NestableDictionary, rhs: NestableDictionary) -> Bool {
-                return lhs.value == rhs.value && lhs.key == rhs.key
-            }
-        }
+        // FIXME: revert to Dictionary when SR-5206 is fixed
+        public typealias Keyed = CodingDictionary
         
-        public struct CEDictionary<K: Hashable, V: TestObject>: TestObject, ExpressibleByDictionaryLiteral, Collection {
+        // MARK: SubKeyed1
+        
+        public struct SubKeyed1<K: Hashable, V>: Codable {
             
-            private var elements: [K:V]
+            public var elements: [K: V]
             
-            public init() {
-                self.elements = [:]
+            public init(key: K, value: V) {
+                self.elements = [key: value]
             }
             
-            // Collection
-            
-            public func index(after i: Dictionary<K, V>.Index) -> Dictionary<K, V>.Index {
-                return self.elements.index(after: i)
+            public init(_ elements: [K: V]) {
+                self.elements = elements
             }
-            
-            public var startIndex: Dictionary<K, V>.Index {
-                return self.elements.startIndex
-            }
-            
-            public var endIndex: Dictionary<K, V>.Index {
-                return self.elements.endIndex
-            }
-            
-            public subscript(position: Dictionary<K, V>.Index) -> Dictionary<K, V>.Element {
-                return self.elements[position]
-            }
-            
-            public func makeIterator() -> Dictionary<K,V>.Iterator {
-                return self.elements.makeIterator()
-            }
-            
-            // literal
-            
-            public init(dictionaryLiteral elements: (K, V)...) {
-                self.elements = Dictionary(elements)
-            }
-            
-            // Codable
             
             public func encode(to encoder: Encoder) throws {
                 
-                // FIXME: use default when SR-5206 is fixed
+                _ = encoder.container(keyedBy: NotAKey.self)
+                // FIXME: revert to default
                 try self.elements.__encode(to: encoder)
             }
             
             public init(from decoder: Decoder) throws {
-                // FIXME: use default when SR-5206 is fixed
-                self.elements = try Dictionary(__from: decoder)
-            }
-            
-            // Equatable
-            
-            public static func ==(lhs: CoderTesting.Objects.CEDictionary<K, V>, rhs: CoderTesting.Objects.CEDictionary<K, V>) -> Bool {
-                return lhs.elements == rhs.elements
+                _ = try decoder.container(keyedBy: NotAKey.self)
+                // FIXME: revert to default
+                self.elements = try .init(__from: decoder)
             }
         }
         
-        /// calls container(keyedBy:) twice on the same Encoder/Decoder to simulate super encode(to: encoder)/init(from: decoder)
-        public struct SubKeyed1<T: TestObject>: NestableTestObject {
+        // MARK: SubKeyed2
+        
+        public struct SubKeyed2<K: Hashable, V>: Codable {
+            
+            public var elements: [K: V]
+            
+            public init(key: K, value: V) {
+                self.elements = [key: value]
+            }
+            
+            public init(_ elements: [K: V]) {
+                self.elements = elements
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                var c = encoder.container(keyedBy: NotAKey.self)
+                let superEncoder = c.superEncoder()
+                try self.elements.__encode(to: superEncoder)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                
+                let c = try decoder.container(keyedBy: NotAKey.self)
+                let superDecoder = try c.superDecoder()
+                self.elements = try Dictionary(__from: superDecoder)
+            }
+        }
+        
+        public struct KeyedNestedUnkeyed<T>: Codable {
             
             public var value: T
             
-            public init(_ value: T) {
+            init(_ value: T) {
                 self.value = value
             }
             
-            private enum CodingKeys: Int, CodingKey {
+            enum CodingKeys: Int, CodingKey {
                 case value = 1
             }
             
             public func encode(to encoder: Encoder) throws {
                 
-                var container1 = encoder.container(keyedBy: CodingKeys.self)
-                try container1.encode(self.value, forKey: .value)
-                // super.encode(to:)
-                var container2 = encoder.container(keyedBy: CodingKeys.self)
-                try container2.encode(self.value, forKey: .value)
+                assertTypeIsEncodable(T.self, in: type(of: self))
+                
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var nestedContainer1 = container.nestedUnkeyedContainer(forKey: .value)
+                var nestedContainer2 = nestedContainer1.nestedUnkeyedContainer()
+                
+                try (self.value as! Encodable).__encode(to: &nestedContainer2)
             }
             
             public init(from decoder: Decoder) throws {
                 
-                let container1 = try decoder.container(keyedBy: CodingKeys.self)
-                self.value = try container1.decode(T.self, forKey: .value)
-                // super.init(from:)
-                let container2 = try decoder.container(keyedBy: CodingKeys.self)
-                _ = try container2.decode(T.self, forKey: .value)
-            }
-            
-            public static func ==(lhs: SubKeyed1, rhs: SubKeyed1) -> Bool {
+                assertTypeIsDecodable(T.self, in: KeyedNestedUnkeyed.self)
                 
-                return lhs.value == rhs.value
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                var nestedContainer1 = try container.nestedUnkeyedContainer(forKey: .value)
+                var nestedContainer2 = try nestedContainer1.nestedUnkeyedContainer()
+                
+                self.value = try (T.self as! Decodable.Type).init(__from: &nestedContainer2) as! T
             }
         }
         
-        /**
-         Codes to the encoder/decoder and a superEncoder/superDecoder using the keyed container's superEncoder()/superDecoder()
-         to simulate super encode(to: superEncoder)/init(from: superDecoder)
-         */
-        public struct SubKeyed2<T: TestObject>: NestableTestObject {
+        public struct KeyedNestedKeyed<T>: Codable {
             
             public var value: T
             
-            public init(_ value: T) {
+            init(_ value: T) {
                 self.value = value
             }
             
-            private enum CodingKeys: Int, CodingKey {
+            public enum CodingKeys: Int, CodingKey {
                 case value = 1
             }
             
             public func encode(to encoder: Encoder) throws {
                 
-                var container1 = encoder.container(keyedBy: CodingKeys.self)
-                try container1.encode(self.value, forKey: .value)
-                let superEncoder = container1.superEncoder()
-                // super.encode(to: superEncoder)
-                var container2 = superEncoder.container(keyedBy: CodingKeys.self)
-                try container2.encode(self.value, forKey: .value)
+                assertTypeIsEncodable(T.self, in: type(of: self))
+                
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var nestedContainer1 = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                var nestedContainer2 = nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                
+                try (self.value as! Encodable).__encode(to: &nestedContainer2, forKey: .value)
             }
             
             public init(from decoder: Decoder) throws {
                 
-                let container1 = try decoder.container(keyedBy: CodingKeys.self)
-                self.value = try container1.decode(T.self, forKey: .value)
-                let superDecoder = try container1.superDecoder()
-                // super.init(from: superDecoder)
-                let container2 = try superDecoder.container(keyedBy: CodingKeys.self)
-                let value2 = try container2.decode(T.self, forKey: .value)
+                assertTypeIsDecodable(T.self, in: KeyedNestedKeyed.self)
                 
-                guard self.value == value2 else {
-                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: container2.codingPath, debugDescription: "super \(type(of: self)) decoded a different value \(self.value) != \(value2)"))
-                }
-            }
-            
-            public static func ==(lhs: SubKeyed2, rhs: SubKeyed2) -> Bool {
-                return lhs.value == rhs.value
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                let nestedContainer1 = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                let nestedContainer2 = try nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                
+                self.value = try (T.self as! Decodable.Type).init(__from: nestedContainer2, forKey: .value) as! T
             }
         }
         
         // MARK: Unkeyed
         
-        // an codable array with only one value at any time
-        public struct NestableArray<T: TestObject>: NestableTestObject {
+        public typealias Unkeyed = CodingArray
+        
+        public struct SubUnkeyed1<T>: Codable {
+            
+            public var elements: [T]
+            
+            public init(_ element: T) {
+                self.elements = [element]
+            }
+            
+            public init(_ elements: [T]) {
+                self.elements = elements
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                _ = encoder.unkeyedContainer()
+                try self.elements.__encode(to: encoder)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                _ = try decoder.unkeyedContainer()
+                self.elements = try .init(__from: decoder)
+            }
+        }
+        
+        public struct SubUnkeyed2<T>: Codable {
+            
+            public var elements: [T]
+            
+            public init(_ element: T) {
+                self.elements = [element]
+            }
+            
+            public init(_ elements: [T]) {
+                self.elements = elements
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                var container1 = encoder.unkeyedContainer()
+                let superEncoder = container1.superEncoder()
+                // super.encode(to: superEncoder)
+                try self.elements.__encode(to: superEncoder)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                
+                var container1 = try decoder.unkeyedContainer()
+                let superDecoder = try container1.superDecoder()
+                // super.init(from: superDecoder)
+                self.elements = try .init(__from: superDecoder)
+            }
+        }
+        
+        public struct UnkeyedNestedUnkeyed<T>: Codable {
+            
+            public var value: T
+            
+            init(_ value: T) {
+                self.value = value
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                assertTypeIsEncodable(T.self, in: type(of: self))
+                
+                var container = encoder.unkeyedContainer()
+                var nestedContainer1 = container.nestedUnkeyedContainer()
+                var nestedContainer2 = nestedContainer1.nestedUnkeyedContainer()
+                
+                try (self.value as! Encodable).__encode(to: &nestedContainer2)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                
+                assertTypeIsDecodable(T.self, in: UnkeyedNestedUnkeyed.self)
+                
+                var container = try decoder.unkeyedContainer()
+                var nestedContainer1 = try container.nestedUnkeyedContainer()
+                var nestedContainer2 = try nestedContainer1.nestedUnkeyedContainer()
+                
+                self.value = try (T.self as! Decodable.Type).init(__from: &nestedContainer2) as! T
+            }
+        }
+        
+        public struct UnkeyedNestedKeyed<T>: Codable {
+            
+            public var value: T
+            
+            init(_ value: T) {
+                self.value = value
+            }
+            
+            public enum CodingKeys: Int, CodingKey {
+                case value = 1
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                assertTypeIsEncodable(T.self, in: type(of: self))
+                
+                var container = encoder.unkeyedContainer()
+                var nestedContainer1 = container.nestedContainer(keyedBy: CodingKeys.self)
+                var nestedContainer2 = nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                
+                try (self.value as! Encodable).__encode(to: &nestedContainer2, forKey: .value)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                
+                assertTypeIsDecodable(T.self, in: UnkeyedNestedKeyed.self)
+                
+                var container = try decoder.unkeyedContainer()
+                let nestedContainer1 = try container.nestedContainer(keyedBy: CodingKeys.self)
+                let nestedContainer2 = try nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                
+                self.value = try (T.self as! Decodable.Type).init(__from: nestedContainer2, forKey: .value) as! T
+            }
+        }
+        
+        // MARK: Multiple Store
+        
+        /// adds more than one value to a referencing encoder's storage before encoding the value
+        public struct MultipleStore<T: Encodable>: Encodable {
             
             public var value: T
             
@@ -1209,259 +815,277 @@ public struct CoderTesting {
                 self.value = value
             }
             
-            // Codable
+            // move to a reference encoder using superEncoder
+            // add a value to stack and reset canEncodeNewValue ( encode(Next) )
+            // then encode value.
+            
+            private enum CodingKeys: Int, CodingKey {
+                case value = 1
+            }
             
             public func encode(to encoder: Encoder) throws {
                 
-                /// FIXME: use the default encode when SR-5206 is fixed
-                // self is not an array (encoder does not see an array), but uses the array's .encode(to:)
-                try [self.value].__encode(to: encoder)
+                var container1 = encoder.container(keyedBy: CodingKeys.self)
+                let superEncoder = container1.superEncoder()
+                var container2 = superEncoder.container(keyedBy: CodingKeys.self)
+                try container2.encode(Next(value: self.value), forKey: .value)
+            }
+            
+            public struct Next: Encodable {
+                public var value: T
+                
+                public func encode(to encoder: Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(value, forKey: .value)
+                }
+            }
+        }
+        
+        // MARK: Visual
+        
+        /// throws the encoder or decoder codingPath in an encoding or decoding error
+        public struct VisualCheck: Codable, CoderTestingSelfThrowingValue {
+            
+            public init() {}
+            
+            public func encode(to encoder: Encoder) throws {
+                throw EncodingError.invalidValue(
+                    self,
+                    EncodingError.Context(
+                        codingPath: encoder.codingPath,
+                        debugDescription: CoderTesting.sharedThrowDescription
+                    )
+                )
+            }
+            
+            public init(from decoder: Decoder) throws {
+                throw DecodingError.valueNotFound(
+                    type(of: self),
+                    DecodingError.Context(
+                        codingPath: decoder.codingPath,
+                        debugDescription: CoderTesting.sharedThrowDescription
+                    )
+                )
+            }
+        }
+        
+        public struct KeyNotFoundCheck: Decodable, CoderTestingSelfThrowingValue {
+            
+            public struct ARandomKey: CodingKey {
+                public var stringValue: String = "1000"
+                
+                public init() {}
+                
+                public init(stringValue: String) {}
+                
+                public var intValue: Int? = 1000
+                
+                public init?(intValue: Int) {}
             }
             
             public init(from decoder: Decoder) throws {
                 
-                /// FIXME: use the default init when SR-5206 is fixed
-                // self is not an array (decoder does not see an array), but uses the array's .init(from:)
-                let array = try Array<T>(__from: decoder)
+                let container = try decoder.container(keyedBy: ARandomKey.self)
                 
-                guard array.count == 1 else {
+                do {
+                    
+                    _ = try container.decode(Bool.self, forKey: ARandomKey())
+                    
                     throw DecodingError.dataCorrupted(
                         DecodingError.Context(
                             codingPath: decoder.codingPath,
-                            debugDescription: "Failed to get value from decoded"
+                            debugDescription: "KeyNotFoundCheck from \(type(of: decoder)) failed to throw for a random key"
+                        )
+                    )
+                    
+                } catch DecodingError.keyNotFound(let key, let context) {
+                    throw DecodingError.keyNotFound(
+                        key,
+                        DecodingError.Context(
+                            codingPath: context.codingPath,
+                            debugDescription: CoderTesting.sharedThrowDescription
+                        )
+                    )
+                }
+            }
+        }
+        
+        public struct UnkeyedIsAtEndCheck: Decodable, CoderTestingSelfThrowingValue {
+            
+            public init(from decoder: Decoder) throws {
+                
+                var container = try decoder.unkeyedContainer()
+                
+                do {
+                    for _ in 1...300 {
+                        _ = try container.decode(Bool.self)
+                    }
+                    
+                } catch DecodingError.valueNotFound(_, let context) {
+                    
+                    guard context.codingPath.count == decoder.codingPath.count + 1 else {
+                        throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: context.codingPath, debugDescription: "expected path count: \(decoder.codingPath.count + 1)"))
+                    }
+                    
+                    throw DecodingError.valueNotFound(
+                        type(of: self),
+                        DecodingError.Context(
+                            codingPath: decoder.codingPath,
+                            debugDescription: CoderTesting.sharedThrowDescription
+                        )
+                    )
+                } catch {
+                    throw DecodingError.dataCorrupted(
+                        DecodingError.Context(
+                            codingPath: decoder.codingPath,
+                            debugDescription: "UnkeyedIsAtEndCheck for \(type(of: decoder)) failed to throw not found",
+                            underlyingError: error
                         )
                     )
                 }
                 
-                self.value = array.first!
-            }
-            
-            public static func ==(lhs: NestableArray, rhs: NestableArray) -> Bool {
-                return lhs.value == rhs.value
-            }
-        }
-        
-        public struct CEArray<E: TestObject>: TestObject, ExpressibleByArrayLiteral, RangeReplaceableCollection {
-            
-            private var elements: [E]
-            
-            public init() {
-                self.elements = []
-            }
-            
-            // collection
-            
-            public func index(after i: Array<E>.Index) -> Array<E>.Index {
-                return self.elements.index(after: i)
-            }
-            
-            public var startIndex: Array<E>.Index {
-                return self.elements.startIndex
-            }
-            
-            public var endIndex: Array<E>.Index {
-                return self.elements.endIndex
-            }
-            
-            public subscript(position: Array<E>.Index) -> Array<E>.Element {
-                return self.elements[position]
-            }
-            
-            public func makeIterator() -> Array<E>.Iterator {
-                return self.elements.makeIterator()
-            }
-            
-            // literal
-            
-            public init(arrayLiteral elements: E...) {
-                self.elements = elements
-            }
-            
-            // Equatable
-            
-            public static func ==(lhs: CoderTesting.Objects.CEArray<E>, rhs: CoderTesting.Objects.CEArray<E>) -> Bool {
-                return lhs.elements == rhs.elements
-            }
-        }
-        
-        /// calls unkeyedContainer twice on the same Encoder/Decoder to simulate super encode(to: encoder)/init(from: decoder)
-        public struct SubUnkeyed1<T: TestObject>: NestableTestObject {
-            
-            public var value: T
-            
-            public init(_ value: T) {
-                self.value = value
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                var container1 = encoder.unkeyedContainer()
-                try container1.encode(self.value)
-                // super.encode(to:)
-                var container2 = encoder.unkeyedContainer()
-                try container2.encode(self.value)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                var container1 = try decoder.unkeyedContainer()
-                self.value = try container1.decode(T.self)
-                // super.init(from:)
-                var container2 = try decoder.unkeyedContainer()
-                _ = try container2.decode(T.self)
-            }
-            
-            public static func ==(lhs: SubUnkeyed1, rhs: SubUnkeyed1) -> Bool {
-                
-                return lhs.value == rhs.value
-            }
-        }
-        
-        /**
-         Codes to the encoder/decoder and a superEncoder/superDecoder using the unkeyed container's superEncoder/superDecoder function
-         to simulate super encode(to: superEncoder)/init(from: superDecoder)
-         */
-        public struct SubUnkeyed2<T: TestObject>: NestableTestObject {
-            
-            public var value: T
-            
-            public init(_ value: T) {
-                self.value = value
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                var container1 = encoder.unkeyedContainer()
-                try container1.encode(self.value)
-                let superEncoder = container1.superEncoder()
-                // super.encode(to: superEncoder)
-                var container2 = superEncoder.unkeyedContainer()
-                try container2.encode(self.value)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                var container1 = try decoder.unkeyedContainer()
-                self.value = try container1.decode(T.self)
-                let superDecoder = try container1.superDecoder()
-                // super.init(from: superDecoder)
-                var container2 = try superDecoder.unkeyedContainer()
-                let value2 = try container2.decode(T.self)
-                
-                guard self.value == value2 else {
-                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: container2.codingPath, debugDescription: "super \(type(of: self)) decoded a different value \(self.value) != \(value2)"))
-                }
-            }
-            
-            public static func ==(lhs: SubUnkeyed2, rhs: SubUnkeyed2) -> Bool {
-                
-                return lhs.value == rhs.value
-            }
-        }
-        
-        /// adds a should be more than one value to a referencing encoder's storage before encoding the value
-        public struct MultipleStore<T: TestObject>: NestableTestObject {
-            
-            public var value: Next
-            
-            public init(_ value: T) {
-                self.value = Next(value)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                
-                var container1 = encoder.unkeyedContainer()
-                let superEncoder = container1.superEncoder()
-                var container2 = superEncoder.unkeyedContainer()
-                try container2.encode(self.value)
-            }
-            
-            public init(from decoder: Decoder) throws {
-                
-                var container1 = try decoder.unkeyedContainer()
-                let superDecoder = try container1.superDecoder()
-                var container2 = try superDecoder.unkeyedContainer()
-                self.value = try container2.decode(Next.self)
-            }
-            
-            public static func ==(lhs: MultipleStore, rhs: MultipleStore) -> Bool {
-                return lhs.value == rhs.value
-            }
-            
-            public struct Next: TestObject {
-                
-                public var value: T
-                
-                public init(_ value: T) {
-                    self.value = value
-                }
-                
-                public func encode(to encoder: Encoder) throws {
-                    
-                    var container1 = encoder.unkeyedContainer()
-                    try container1.encode(self.value)
-                }
-                
-                public init(from decoder: Decoder) throws {
-                    
-                    var container1 = try decoder.unkeyedContainer()
-                    self.value = try container1.decode(T.self)
-                }
-                
-                public static func ==(lhs: Next, rhs: Next) -> Bool {
-                    return lhs.value == rhs.value
-                }
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(
+                        codingPath: decoder.codingPath,
+                        debugDescription: "UnkeyedIsAtEndCheck for \(type(of: decoder)) failed to throw not found after the 300th value."
+                    )
+                )
             }
         }
     }
 }
 
-public typealias CodableTestObject = Codable & Equatable
+/// an identifier for a Encodable and/or Decodable value that overrides the path throwing
+public protocol CoderTestingSelfThrowingValue {}
 
-// a codable and equatable
-public protocol CoderNestableTestObject: CodableTestObject {
+
+// MARK: temporary
+// FIXME: remove when SR-5206 is fixed
+
+public extension Optional {
     
-    associatedtype Value: CodableTestObject
-    
-    init(_ value: Value)
+    public func codingTemporary() -> CodingOptional<Wrapped> {
+        return CodingOptional(self)
+    }
 }
 
-//public protocol EmptyInitialable {
-//    init()
-//}
-//
-//extension String: EmptyInitialable {}
-//extension Int: EmptyInitialable {}
-//
-///// represents a coder function call to enable tests to create or use a CodingKey
-//public enum CoderCodingPathCall {
-//
-//    case container(keyedBy: CodingKey)
-//    case unkeyedContainer(index: Int)
-//    case unkeyedContainerUnknownIndex
-//    case superCoder
-//}
-//
-//public protocol EncodableTestObject: Encodable, Equatable {
-//
-//    static var encodePathCalls: [CoderCodingPathCall] {get}
-//}
-//
-//public protocol DecodableTestObject: Decodable, Equatable {
-//
-//    static var decodePathCalls: [CoderCodingPathCall] {get}
-//}
-//
-//public protocol CodableTestObject: EncodableTestObject, DecodableTestObject {
-//
-//    static var codingPathCalls: [CoderCodingPathCall] {get}
-//}
-//
-//extension CodableTestObject {
-//
-//    public static var encodePathCalls: [CoderCodingPathCall] {return self.codingPathCalls}
-//    public static var decodePathCalls: [CoderCodingPathCall] {return self.codingPathCalls}
-//}
+public struct CodingOptional<T>: Codable {
+    
+    public var optional: T?
+    
+    public init(_ optional: T?) {
+        self.optional = optional
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        try self.optional.__encode(to: encoder)
+    }
+    
+    public init(from decoder: Decoder) throws {
+        self.optional = try .init(__from: decoder)
+    }
+    
+    public func swiftType() -> T? {
+        return self.optional
+    }
+}
+
+public extension Array {
+    
+    public func codingTemporary() -> CodingArray<Element> {
+        return CodingArray(self)
+    }
+}
+
+public struct CodingArray<E>: Codable {
+    
+    public var elements: [E]
+    
+    public init(_ element: E) {
+        self.elements = [element]
+    }
+    
+    public init(_ array: [E]) {
+        self.elements = array
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        try self.elements.__encode(to: encoder)
+    }
+    
+    public init(from decoder: Decoder) throws {
+        self.elements = try .init(__from: decoder)
+    }
+    
+    public func swiftType() -> [E] {
+        return self.elements
+    }
+}
+
+public extension Set {
+    
+    public func codingTemporary() -> CodingSet<Element> {
+        return CodingSet(self)
+    }
+}
+
+public struct CodingSet<E: Hashable>: Codable {
+    
+    public var elements: Set<E>
+    
+    public init(_ element: E) {
+        self.elements = Set([element])
+    }
+    
+    public init(_ elements: Set<E>) {
+        self.elements = elements
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        try self.elements.__encode(to: encoder)
+    }
+    
+    public init(from decoder: Decoder) throws {
+        self.elements = try .init(__from: decoder)
+    }
+    
+    public func swiftType() -> Set<E> {
+        return self.elements
+    }
+}
+
+public extension Dictionary {
+    
+    public func codingTemporary() -> CodingDictionary<Key, Value> {
+        return CodingDictionary(self)
+    }
+}
+
+public struct CodingDictionary<K: Hashable, V>: Codable {
+    
+    public var elements: [K : V]
+    
+    public init(key: K, value: V) {
+        
+        self.elements = [key: value]
+    }
+    
+    public init(_ elements: [K : V]) {
+        self.elements = elements
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        try self.elements.__encode(to: encoder)
+    }
+    
+    public init(from decoder: Decoder) throws {
+        self.elements = try .init(__from: decoder)
+    }
+    
+    public func swiftType() -> [K : V] {
+        return self.elements
+    }
+}
 
 // MARK: CharacterSet
 
@@ -1479,4 +1103,221 @@ fileprivate extension CharacterSet {
         return result
     }
 }
+
+
+
+//// MARK: EquatableOptional
+//
+//public enum EquatableOptional<Wrapped: Equatable>: Codable, Equatable, ExpressibleByNilLiteral {
+//
+//    case some(Wrapped)
+//    case none
+//
+//    public init(_ wrapped: Wrapped) {
+//        self = .some(wrapped)
+//    }
+//
+//    public func asOptional() -> Wrapped? {
+//        switch self {
+//        case .some(let wrapped): return wrapped
+//        case .none: return nil
+//        }
+//    }
+//
+//    // ExpressibleByNilLiteral
+//
+//    public init(nilLiteral: ()) {
+//        self = .none
+//    }
+//
+//    // Codable
+//
+//    public func encode(to encoder: Encoder) throws {
+//
+//        // FIXME: use default when SR-5206 is fixed
+//        try self.asOptional().__encode(to: encoder)
+//    }
+//
+//    public init(from decoder: Decoder) throws {
+//
+//        // FIXME: use default when SR-5206 is fixed
+//        switch try Optional<Wrapped>(__from: decoder) {
+//        case .some(let wrapped): self = .some(wrapped)
+//        case .none: self = .none
+//        }
+//    }
+//
+//    // Equatable
+//
+//    public static func ==(lhs: EquatableOptional, rhs: EquatableOptional) -> Bool {
+//        return lhs.asOptional() == rhs.asOptional()
+//    }
+//}
+
+//public protocol ArrayMimicable: Codable, ExpressibleByArrayLiteral, RangeReplaceableCollection {
+//    var elements: [Element] {get set}
+//    init(_ elements: [Element])
+//
+//    func index(after i: Array<Element>.Index) -> Array<Element>.Index
+//    var startIndex: Array<Element>.Index {get}
+//    var endIndex: Array<Element>.Index {get}
+//    subscript(position: Array<Element>.Index) -> Element {get set}
+//
+//    func makeIterator() -> Array<Element>.Iterator
+//
+//    init(arrayLiteral elements: Element...)
+//
+//    init()
+//
+//    func encode(to encoder: Encoder) throws
+//    init(from decoder: Decoder) throws
+//}
+//
+//extension ArrayMimicable {
+//
+//    public func index(after i: Array<Element>.Index) -> Array<Element>.Index {
+//        return self.elements.index(after: i)
+//    }
+//
+//    public var startIndex: Array<Element>.Index {
+//        return self.elements.startIndex
+//    }
+//
+//    public var endIndex: Array<Element>.Index {
+//        return self.elements.endIndex
+//    }
+//
+//    public subscript(position: Array<Element>.Index) -> Element {
+//        get {
+//            return self.elements[position]
+//        }
+//        set {
+//            self.elements[position] = newValue
+//        }
+//    }
+//
+//    public func makeIterator() -> Array<Element>.Iterator {
+//        return self.elements.makeIterator()
+//    }
+//
+//    public init(arrayLiteral elements: Element...) {
+//        self.init(elements)
+//    }
+//
+//    public init() {
+//        self.init([] as [Element])
+//    }
+//
+//    public func encode(to encoder: Encoder) throws {
+//
+//        try self.elements.__encode(to: encoder)
+//    }
+//
+//    public init(from decoder: Decoder) throws {
+//
+//        self.init(try Array<Element>(__from: decoder))
+//    }
+//}
+
+//// EquatableArray
+//
+//public struct EquatableArray<E: Equatable>: ArrayMimicable, Equatable {
+//
+//    public typealias Element = E
+//
+//    public var elements: [Element]
+//
+//    public init(_ elements: [Element]) {
+//        self.elements = elements
+//    }
+//
+//    public static func ==(lhs: EquatableArray, rhs: EquatableArray) -> Bool {
+//        return lhs.elements == rhs.elements
+//    }
+//}
+
+
+//public protocol DictionaryMimicable: Codable, ExpressibleByDictionaryLiteral, Collection where Key: Hashable {
+//
+//    var elements: [Key: Value] {get set}
+//    init(_ elements: [Key: Value])
+//
+//    init(dictionaryLiteral elements: (Key, Value)...)
+//
+//    func index(after i: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Index
+//    var endIndex: Dictionary<Key, Value>.Index {get}
+//    var startIndex: Dictionary<Key, Value>.Index {get}
+//    subscript(position: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Element {get}
+//
+//    func encode(to encoder: Encoder) throws
+//    init(from decoder: Decoder) throws
+//
+//    init()
+//}
+//
+//extension DictionaryMimicable {
+//
+//    public init(dictionaryLiteral elements: (Key, Value)...) {
+//        self.init(Dictionary(elements))
+//    }
+//
+//    public func index(after i: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Index {
+//        return self.elements.index(after: i)
+//    }
+//
+//    public var endIndex: Dictionary<Key, Value>.Index {
+//        return self.elements.endIndex
+//    }
+//
+//    public var startIndex: Dictionary<Key, Value>.Index {
+//        return self.elements.startIndex
+//    }
+//
+//    public subscript(position: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Element {
+//        return self.elements[position]
+//    }
+//
+//    public subscript(key: Key) -> Value? {
+//        get {
+//            return self.elements[key]
+//        }
+//        set {
+//            self.elements[key] = newValue
+//        }
+//    }
+//
+//    public func encode(to encoder: Encoder) throws {
+//
+//        // FIXME: use default when SR-5206 is fixed
+//        try self.elements.__encode(to: encoder)
+//    }
+//
+//    public init(from decoder: Decoder) throws {
+//        // FIXME: use default when SR-5206 is fixed
+//        self.init(try Dictionary(__from: decoder))
+//    }
+//
+//    public init() {
+//        self.init([:])
+//    }
+//}
+
+//// EquatableDictionary
+//
+//public struct EquatableDictionary<K: Hashable, V: Equatable>: DictionaryMimicable, Equatable {
+//    public typealias Key = K
+//    public typealias Value = V
+//
+//    public var elements: [K: V]
+//
+//    public init(_ elements: [K: V]) {
+//        self.elements = elements
+//    }
+//
+//    // Equatable
+//
+//    public static func ==(lhs: EquatableDictionary, rhs: EquatableDictionary) -> Bool {
+//        return lhs.elements == rhs.elements
+//    }
+//}
 
