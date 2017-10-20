@@ -136,7 +136,7 @@ public struct URLQuerySerializer {
     
     // MARK: isValidObject
     
-    public static func isValidObject(_ value: Any, printError: Bool = false) -> Bool {
+    public func isValidObject(_ value: Any, printError: Bool = false) -> Bool {
         
         do {
             try assertValidObject(value)
@@ -153,7 +153,7 @@ public struct URLQuerySerializer {
         }
     }
     
-    private static func _assert(key: String, nested: Bool = false) throws {
+    private func _assert(key: String, nested: Bool = false) throws {
         
         for c in key {
             if _invalidKeyCharacters.contains(c) {
@@ -166,7 +166,7 @@ public struct URLQuerySerializer {
         }
     }
     
-    public static func assertValidObject(_ value: Any) throws {
+    public func assertValidObject(_ value: Any) throws {
         
         if let value = value as? [String: Any] {
             
@@ -186,25 +186,12 @@ public struct URLQuerySerializer {
                 try _assertValidObject(value)
             }
             
-            // top-level arrays are not allowed
-//        } else if case .arraysAreDictionaries = arraySerialization {
-//
-//            if let value = value as? [Any] {
-//
-//                for value in value {
-//
-//                    try _assertValidObject(value)
-//                }
-//
-//            } else {
-//                throw ToQueryError.invalidTopLevelObject(value, mustBeOneOf: [[String: Any].self, [(String, Any)].self, [Any].self])
-//            }
         } else {
             throw ToQueryError.invalidTopLevelObject(value, mustBeOneOf: [[String: Any].self, [(String, Any)].self])
         }
     }
     
-    private static func _assertValidObject(_ value: Any) throws {
+    private func _assertValidObject(_ value: Any, inArray: Bool = false) throws {
         
         if value is NSNumber {
             return
@@ -220,6 +207,10 @@ public struct URLQuerySerializer {
             
         } else if isNil(value) {
             return
+            
+        } else if inArray, case .defaultAndThrowIfNested = self.arraySerialization {
+            
+            throw ToQueryError.nestedContainerInArray
             
         } else if let value = value as? [String: Any] {
             
@@ -242,7 +233,7 @@ public struct URLQuerySerializer {
         } else if let value = value as? NSArray {
 
             for value in value {
-                try _assertValidObject(value)
+                try _assertValidObject(value, inArray: true)
             }
 
         } else {
@@ -274,7 +265,7 @@ public struct URLQuerySerializer {
     
     public func queryItems(from value: Any) throws -> [URLQueryItem] {
         
-        try URLQuerySerializer.assertValidObject(value)
+        try self.assertValidObject(value)
         
         var query: [URLQueryItem] = []
         
@@ -292,13 +283,6 @@ public struct URLQuerySerializer {
                 try self._queryItems(name: name, value: value, to: &query)
             }
             
-            // top-level arrays are not allowed
-//        } else if let value = value as? NSArray, case .arraysAreDictionaries = arraySerialization {
-//
-//            for (index, value) in value.enumerated() {
-//                try self._queryItems(name: index.description, value: value, to: &query)
-//            }
-//
         } else {
 
             fatalError("URLQuerySerializer.assertValidObject(_:) did not catch a valid top-level object: \(value) of type: \(type(of: value))")
@@ -311,10 +295,6 @@ public struct URLQuerySerializer {
         
         if let value = value as? [String: Any] {
             
-            if name.hasSuffix("[]") {
-                throw ToQueryError.nestedContainerInArray
-            }
-            
             for (key, value) in value {
                 
                 try self._queryItems(name: name + "[\(key)]", value: value, to: &query)
@@ -322,20 +302,12 @@ public struct URLQuerySerializer {
         
         } else if let value = value as? [(String, Any)] {
             
-            if name.hasSuffix("[]") {
-                throw ToQueryError.nestedContainerInArray
-            }
-            
             for (key, value) in value {
                 
                 try self._queryItems(name: name + "[\(key)]", value: value, to: &query)
             }
             
         } else if let value = value as? NSArray {
-            
-            if name.hasSuffix("[]") {
-                throw ToQueryError.nestedContainerInArray
-            }
             
             switch arraySerialization {
                 
@@ -518,22 +490,18 @@ public struct URLQuerySerializer {
                     _values.append((name, keys, value), forKey: key)
                 }
                 
-                // if values.keys contains "0", "1", "2", ..< elements.count, top-level can be an array
+                // if values.keys contains "0", "1", "2", ..< elements.count, top-level is an array
                 isArray: if case .arraysAreDictionaries = arraySerialization {
                     
                     var array: [Values] = []
                     
-                    var index = 0
-                    
-                    while index < _values.elements.count {
+                    for (index, element) in _values.elements.enumerated() {
                         
-                        guard let values = _values.elements.first(where: { $0.key == "\(index)" })?.value else {
+                        guard _values.elements.first(where: { $0.key == "\(index)" }) != nil else {
                             break isArray
                         }
                         
-                        index += 1
-                        
-                        array.append(values)
+                        array.append(element.value)
                     }
                     
                     return try array.map { try self._combine($0) }

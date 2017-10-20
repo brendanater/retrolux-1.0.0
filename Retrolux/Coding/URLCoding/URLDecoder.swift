@@ -173,10 +173,27 @@ public struct URLDecoder: TopLevelDecoder {
                 
                 return value
                 
+            } else if let value = value as? [Any], value.isEmpty {
+                
+                return NSDictionary()
+                
             } else {
                 
-                throw self.failedToUnbox(value, to: NSDictionary.self, "\(nested ? "nested " : "")keyed container", at: codingPath)
+                throw self.failedToUnbox(value, to: NSDictionary.self, (nested ? "nested " : "") + "keyed container", at: codingPath)
             }
+        }
+        
+        func unboxNil(_ value: Any) -> Bool {
+            return (value as? String)?.isEmpty ?? isNil(value)
+        }
+        
+        func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> String {
+            
+            if let value = value as? String, !value.isEmpty {
+                return value
+            }
+            
+            throw self.failedToUnbox(value, to: String.self, at: codingPath)
         }
         
         func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> Bool {

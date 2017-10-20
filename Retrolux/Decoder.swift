@@ -45,8 +45,6 @@ public protocol AnyDecoderBase: class, Decoder, SingleValueDecodingContainer {
     /// whether to get from container using the CodingKey's .stringValue or .intValue!
     static var usesStringValue: Bool {get}
     
-    // required
-    
     var codingPath: [CodingKey] {get set}
     var untypedOptions: Any {get}
     var userInfo: [CodingUserInfoKey : Any] {get}
@@ -55,10 +53,42 @@ public protocol AnyDecoderBase: class, Decoder, SingleValueDecodingContainer {
     
     var storage: [Any] {get set} // = []
     
-    // new methods
+    // optional overridable methods
     
-    // TODO: add all methods.
+    func start<T: Decodable>(with value: Any) throws -> T
     
+    var currentValue: Any {get}
+    
+    // MARK: decode
+    
+    func decodeNil() -> Bool
+    func decode(_ type: Bool  .Type) throws -> Bool
+    func decode(_ type: Int   .Type) throws -> Int
+    func decode(_ type: Int8  .Type) throws -> Int8
+    func decode(_ type: Int16 .Type) throws -> Int16
+    func decode(_ type: Int32 .Type) throws -> Int32
+    func decode(_ type: Int64 .Type) throws -> Int64
+    func decode(_ type: UInt  .Type) throws -> UInt
+    func decode(_ type: UInt8 .Type) throws -> UInt8
+    func decode(_ type: UInt16.Type) throws -> UInt16
+    func decode(_ type: UInt32.Type) throws -> UInt32
+    func decode(_ type: UInt64.Type) throws -> UInt64
+    func decode(_ type: Float .Type) throws -> Float
+    func decode(_ type: Double.Type) throws -> Double
+    func decode(_ type: String.Type) throws -> String
+    func decode<T: Decodable>(_ type:T.Type)throws->T
+    
+    // MARK: unboxing
+    
+    /// an error to throw if unboxing fails
+    func failedToUnbox(_ value: Any, to _type: Any.Type, _ typeDescription: String?, at codingPath: [CodingKey]) -> DecodingError
+    func notFound(_ _type: Any.Type, _ typeDescription: String?, at codingPath: [CodingKey]) -> DecodingError
+    func typeError(_ value: Any, _ _type: Any.Type, _ typeDescription: String?, at codingPath: [CodingKey]) -> DecodingError
+    func corrupted(_ debugDescription: String, at codingPath: [CodingKey]) -> DecodingError
+    
+    //
+    
+    func unboxNil(_ value: Any) -> Bool
     func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> Bool
     func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> Int
     func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> Int8
@@ -75,11 +105,22 @@ public protocol AnyDecoderBase: class, Decoder, SingleValueDecodingContainer {
     func unbox(_ value: Any, at codingPath: [CodingKey]) throws -> String
     func unbox<T: Decodable>(_ value: Any, at codingPath: [CodingKey]) throws -> T
     
+    func redecode<T: Decodable>(_ value: Any, at codingPath: [CodingKey]) throws -> T
+    func redecode<T: Decodable>(_ value: Any, at codingPath: [CodingKey], closure: (Decoder)throws->T) throws -> T
+    
+    // MARK: containers
+    
     func keyedContainerContainer(_ value: Any, at codingPath: [CodingKey], nested: Bool) throws -> DecoderKeyedContainerContainer
     func unkeyedContainerContainer(_ value: Any, at codingPath: [CodingKey], nested: Bool) throws -> DecoderUnkeyedContainerContainer
     
     func keyedContainer<Key>(decoder: AnyDecoderBase, container: DecoderKeyedContainerContainer, nestedPath: [CodingKey]) -> KeyedDecodingContainer<Key>
     func unkeyedContainer(decoder: AnyDecoderBase, container: DecoderUnkeyedContainerContainer, nestedPath: [CodingKey]) -> UnkeyedDecodingContainer
+    
+    //
+    
+    func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey
+    func unkeyedContainer() throws -> UnkeyedDecodingContainer
+    func singleValueContainer() throws -> SingleValueDecodingContainer
 }
 
 public extension AnyDecoderBase {
@@ -95,7 +136,6 @@ public extension AnyDecoderBase {
     // MARK: decode single value
     
     public func decodeNil() -> Bool { return self.unboxNil(self.currentValue) }
-    
     public func decode(_ type: Bool  .Type) throws -> Bool   { return try self.unbox(self.currentValue, at: self.codingPath) }
     public func decode(_ type: Int   .Type) throws -> Int    { return try self.unbox(self.currentValue, at: self.codingPath) }
     public func decode(_ type: Int8  .Type) throws -> Int8   { return try self.unbox(self.currentValue, at: self.codingPath) }
@@ -183,14 +223,21 @@ public extension AnyDecoderBase {
     public func convert<T: ConvertibleNumber>(number value: Any, at codingPath: [CodingKey]) throws -> T {
         
         if (value as? NSNumber)?.isBoolean ?? false {
-
+            // skip
+            
         } else if value is T {// value is T is more accurate than as? T
             
             return value as! T
             
-        } else if value is NSNumber, let value = value as? NSNumber, let number = T(exactly: value), number as? NSNumber == value {
+        } else if value is NSNumber, let value = value as? NSNumber, let number = T(exactly: value) {
             
-            return number
+            if number is NSNumber {
+                if number as? NSNumber == value {
+                    return number
+                }
+            } else {
+                return number
+            }
             
         } else if let value = value as? String, let number = T(value) {
             
@@ -230,14 +277,15 @@ public extension AnyDecoderBase {
     public func unbox<T: Decodable>(_ value: Any, at codingPath: [CodingKey]) throws -> T {
         
         return try self.unbox(default: value, at: codingPath)
+            ?? self.redecode(value, at: codingPath)
     }
     
-    public func unbox<T: Decodable>(default value: Any, at codingPath: [CodingKey]) throws -> T {
+    public func unbox<T: Decodable>(default value: Any, at codingPath: [CodingKey]) throws -> T? {
         
         switch T.self {
         // FIXME: remove when SR-5206 is fixed
         case is BrokenDecode.Type: return try self.redecode(value, at: codingPath, closure: { try (T.self as! BrokenDecode.Type).init(__from: $0) as! T })
-        default: return try self.redecode(value, at: codingPath)
+        default: return nil
         }
     }
     
@@ -343,7 +391,7 @@ public extension DecoderBase {
         }
     }
     
-    init(options: Options, userInfo: [CodingUserInfoKey: Any]) {
+    public init(options: Options, userInfo: [CodingUserInfoKey: Any]) {
         self.init(codingPath: [], options: options, userInfo: userInfo)
     }
 }
@@ -387,6 +435,7 @@ public extension DecoderJSONBase {
         
         return try self.unbox(json: value, at: codingPath)
             ?? self.unbox(default: value, at: codingPath)
+            ?? self.redecode(value, at: codingPath)
     }
     
     func unbox<T>(json value: Any, at codingPath: [CodingKey]) throws -> T? where T : Decodable {
@@ -533,8 +582,45 @@ public protocol DecoderKeyedContainer: KeyedDecodingContainerProtocol {
     
     init(decoder: AnyDecoderBase, container: DecoderKeyedContainerContainer, nestedPath: [CodingKey])
     
-    // TODO: add all methods.
+    // overridable methods
+    
+    var usesStringValue: Bool {get}
+    
+    var codingPath: [CodingKey] {get}
+    
+    func currentPath(_ key: CodingKey) -> [CodingKey]
+    
+    var allKeys: [Key] {get}
+    
+    func keyNotFound(_ key: CodingKey) -> DecodingError
+    
     func value(forKey key: CodingKey) throws -> Any
+    
+    func contains(_ key: Key) -> Bool
+    
+    func decodeNil(forKey key: Key) throws -> Bool
+    func decode(_ type: Bool.Type  , forKey key: Key) throws -> Bool
+    func decode(_ type: Int.Type   , forKey key: Key) throws -> Int
+    func decode(_ type: Int8.Type  , forKey key: Key) throws -> Int8
+    func decode(_ type: Int16.Type , forKey key: Key) throws -> Int16
+    func decode(_ type: Int32.Type , forKey key: Key) throws -> Int32
+    func decode(_ type: Int64.Type , forKey key: Key) throws -> Int64
+    func decode(_ type: UInt.Type  , forKey key: Key) throws -> UInt
+    func decode(_ type: UInt8.Type , forKey key: Key) throws -> UInt8
+    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16
+    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32
+    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64
+    func decode(_ type: Float.Type , forKey key: Key) throws -> Float
+    func decode(_ type: Double.Type, forKey key: Key) throws -> Double
+    func decode(_ type: String.Type, forKey key: Key) throws -> String
+    func decode<T: Decodable>(_ type: T.Type, forKey key: Key)throws->T
+    
+    // containers
+    
+    func nestedContainer<NestedKey>(keyedBy: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey>
+    func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer
+    func superDecoder() throws -> Decoder
+    func superDecoder(forKey key: Key) throws -> Decoder
 }
 
 public extension DecoderKeyedContainer {
@@ -557,13 +643,13 @@ public extension DecoderKeyedContainer {
         return self.container.stringValueKeys.flatMap { Key(stringValue: $0) } + self.container.intValueKeys.flatMap { Key(intValue: $0) }
     }
     
-    private func keyNotFound(_ key: CodingKey) -> Error {
+    public func keyNotFound(_ key: CodingKey) -> DecodingError {
         return DecodingError.keyNotFound(
             key,
             DecodingError.Context(
                 // key is not added to the path by default
                 codingPath: self.codingPath,
-                debugDescription: "No value found for \(type(of: key)): \(key) (stringValue: \(key.stringValue), intValue: \(key.intValue.map { $0.description } ?? "nil"))"
+                debugDescription: "No value found for \(type(of: key)): \(key) (stringValue: \(key.stringValue), intValue: \(key.intValue?.description ?? "nil"))"
             )
         )
     }
@@ -705,8 +791,44 @@ public protocol DecoderUnkeyedContainer: UnkeyedDecodingContainer {
     /// currentIndex starts at 0 and increments for every call
     var currentIndex: Int {get set} // = 0
     
-    // TODO: add all methods.
+    // overridable
+    
+    var codingPath: [CodingKey] {get}
+    var currentPath: [CodingKey] {get}
+    var currentKey: CodingKey {get}
+    var count: Int? {get}
+    var isAtEnd: Bool {get}
+    
+    func isAtEnd(_ _type: Any.Type, _ typeDescription: String?) -> DecodingError
+    
+    /// gets the current value if !self.isAtEnd or throws valueNotFound found with the type
     func currentValue(_ _type: Any.Type, _ typeDescription: String?) throws -> Any
+    
+    /// adds 1 to .currentIndex
+    mutating func increment()
+    
+    mutating func decodeNil() throws -> Bool
+    mutating func decode(_ type: Bool.Type  ) throws -> Bool
+    mutating func decode(_ type: Int.Type   ) throws -> Int
+    mutating func decode(_ type: Int8.Type  ) throws -> Int8
+    mutating func decode(_ type: Int16.Type ) throws -> Int16
+    mutating func decode(_ type: Int32.Type ) throws -> Int32
+    mutating func decode(_ type: Int64.Type ) throws -> Int64
+    mutating func decode(_ type: UInt.Type  ) throws -> UInt
+    mutating func decode(_ type: UInt8.Type ) throws -> UInt8
+    mutating func decode(_ type: UInt16.Type) throws -> UInt16
+    mutating func decode(_ type: UInt32.Type) throws -> UInt32
+    mutating func decode(_ type: UInt64.Type) throws -> UInt64
+    mutating func decode(_ type: Float.Type ) throws -> Float
+    mutating func decode(_ type: Double.Type) throws -> Double
+    mutating func decode(_ type: String.Type) throws -> String
+    mutating func decode<T: Decodable>(_ type: T.Type)throws->T
+    
+    // containers
+    
+    mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey
+    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer
+    mutating func superDecoder() throws -> Decoder
 }
 
 public extension DecoderUnkeyedContainer {
@@ -735,12 +857,12 @@ public extension DecoderUnkeyedContainer {
         return self.container.isAtEnd(index: self.currentIndex)
     }
     
-    public func valueNotFound(_ _type: Any.Type, _ typeDescription: String) -> DecodingError {
+    public func isAtEnd(_ _type: Any.Type, _ typeDescription: String? = nil) -> DecodingError {
         return DecodingError.valueNotFound(
             _type,
             DecodingError.Context(
                 codingPath: self.currentPath,
-                debugDescription: "Cannot get \(typeDescription) -- Unkeyed container is at end."
+                debugDescription: "Cannot get \(typeDescription ?? "\(_type)") -- Unkeyed container is at end."
             )
         )
     }
@@ -750,7 +872,7 @@ public extension DecoderUnkeyedContainer {
         
         if self.isAtEnd {
             
-            throw self.valueNotFound(_type, typeDescription ?? "\(_type)")
+            throw self.isAtEnd(_type, typeDescription)
         }
         
         return self.container.fromStorage(self.currentIndex)
@@ -888,6 +1010,7 @@ extension Decimal: ConvertibleNumber {
     }
 }
 
+// MARK: Temporary decoding workarounds
 
 // FIXME: remove when SR-5206 is fixed
 func assertTypeIsDecodable(_ _type: Any.Type, in wrappingType: Any.Type) {

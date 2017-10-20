@@ -29,52 +29,6 @@ import Foundation
 
 // CodingKey
 
-/**
- an expressible by string and int literal CodingKey
- 
- if init with stringValue,
- self.stringValue = stringValue
- self.intValue = Int(stringValue)
- 
- if init(intValue:),
- self.stringValue = intValue.description
- self.intValue = intValue
- 
- */
-public struct CodingGenericKey : CodingKey {
-    
-    public let stringValue: String
-    public let intValue: Int?
-    
-    public init(stringValue: String) {
-        self.stringValue = stringValue
-        self.intValue = Int(stringValue)
-    }
-    
-    public init(intValue: Int) {
-        self.stringValue = intValue.description
-        self.intValue = intValue
-    }
-}
-
-extension CodingGenericKey: ExpressibleByStringLiteral {
-    
-    public typealias StringLiteralType = String
-    
-    public init(stringLiteral value: String) {
-        self.init(stringValue: value)
-    }
-}
-
-extension CodingGenericKey: ExpressibleByIntegerLiteral {
-    
-    public typealias IntegerLiteralType = Int
-    
-    public init(integerLiteral value: Int) {
-        self.init(intValue: value)
-    }
-}
-
 /// a codingKey where the intValue is never nil and the stringValue is always "Index " + self.intValue!.description
 public struct CodingIndexKey: CodingKey {
     
@@ -112,11 +66,17 @@ public struct CodingSuperKey: CodingKey {
     
     public init() {}
     
-    public init(stringValue: String) {}
+    public init?(stringValue: String) {
+        if stringValue != "super" {
+            return nil
+        }
+    }
     
     public var intValue: Int? = nil
     
-    public init(intValue: Int) {}
+    public init?(intValue: Int) {
+        return nil
+    }
 }
 
 func ==(lhs: CodingKey, rhs: CodingKey) -> Bool {
@@ -178,7 +138,7 @@ public extension EncodingError {
 extension CodingUserInfoKey: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         
-        if let _self = CodingUserInfoKey._init1(rawValue: value) {
+        if let _self = CodingUserInfoKey._init_(rawValue: value) {
             
             self = _self
             
@@ -187,7 +147,7 @@ extension CodingUserInfoKey: ExpressibleByStringLiteral {
         }
     }
     
-    private static func _init1(rawValue: String) -> CodingUserInfoKey? {
+    private static func _init_(rawValue: String) -> CodingUserInfoKey? {
         return self.init(rawValue: rawValue)
     }
 }
@@ -270,7 +230,7 @@ public typealias TypeID = ObjectIdentifier
 public extension Array {
     
     /**
-     gets an ArraySlice or returns nil using subscript:
+     gets an ArraySlice or returns nil using subscript range:
      index * count ..< min((index * count) + count, self.endIndex)
      
      example:

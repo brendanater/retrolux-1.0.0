@@ -86,7 +86,7 @@ public struct URLEncoder: TopLevelEncoder {
         let result = try Base(options: self.options, userInfo: self.userInfo).start(with: value)
         
         do {
-            try URLQuerySerializer.assertValidObject(result)
+            try self.serializer.assertValidObject(result)
             
             return result
             
@@ -200,7 +200,7 @@ public struct URLEncoder: TopLevelEncoder {
         }
         
         /// replaces the value for the key at index or appends the new value
-        func set(toStorage value: Any, forKey key: AnyHashable) {
+        func setToStorage(_ value: Any, forKey key: AnyHashable) {
             
             let key = key as! String
             

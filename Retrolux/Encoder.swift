@@ -66,33 +66,60 @@ public protocol AnyEncoderBase: class, Encoder, SingleValueEncodingContainer {
     
     // all methods
     
-    // TODO: add all methods
-    
     func start<T: Encodable>(with value: T) throws -> Any
     
     func set(_ encoded: Any)
     
-    func boxNil(                       at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Bool           , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Int            , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Int8           , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Int16          , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Int32          , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Int64          , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: UInt           , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: UInt8          , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: UInt16         , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: UInt32         , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: UInt64         , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Float          , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: Double         , at codingPath: [CodingKey]) throws -> Any
-    func box(_ value: String         , at codingPath: [CodingKey]) throws -> Any
+    // encode
+    
+    func encodeNil(            ) throws
+    func encode(_ value: Bool  ) throws
+    func encode(_ value: Int   ) throws
+    func encode(_ value: Int8  ) throws
+    func encode(_ value: Int16 ) throws
+    func encode(_ value: Int32 ) throws
+    func encode(_ value: Int64 ) throws
+    func encode(_ value: UInt  ) throws
+    func encode(_ value: UInt8 ) throws
+    func encode(_ value: UInt16) throws
+    func encode(_ value: UInt32) throws
+    func encode(_ value: UInt64) throws
+    func encode(_ value: String) throws
+    func encode(_ value: Float ) throws
+    func encode(_ value: Double) throws
+    func encode<T: Encodable>(_ value: T) throws
+    
+    // MARK: boxing
+    
+    func boxNil(              at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Bool  , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Int   , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Int8  , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Int16 , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Int32 , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Int64 , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: UInt  , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: UInt8 , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: UInt16, at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: UInt32, at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: UInt64, at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Float , at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: Double, at codingPath: [CodingKey]) throws -> Any
+    func box(_ value: String, at codingPath: [CodingKey]) throws -> Any
     func box<T: Encodable>(_ value: T, at codingPath: [CodingKey]) throws -> Any
     
+    func reencode<T: Encodable>(_ value: T, at codingPath: [CodingKey]) throws -> Any
     func reencode<T: Encodable>(_ value: T, at codingPath: [CodingKey], closure: (T, Encoder)throws->Void) throws -> Any
+    
+    // MARK: containers
     
     func keyedContainerContainer() -> EncoderKeyedContainerContainer
     func unkeyedContainerContainer() -> EncoderUnkeyedContainerContainer
+    
+    func keyedContainer<Key>(encoder: AnyEncoderBase, container: EncoderKeyedContainerContainer, nestedPath: [CodingKey]) -> KeyedEncodingContainer<Key>
+    func unkeyedContainer(encoder: AnyEncoderBase, container: EncoderUnkeyedContainerContainer, nestedPath: [CodingKey]) -> UnkeyedEncodingContainer
+    
+    //
     
     func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey
     func unkeyedContainer() -> UnkeyedEncodingContainer
@@ -165,14 +192,15 @@ public extension AnyEncoderBase {
     public func box<T: Encodable>(_ value: T, at codingPath: [CodingKey]) throws -> Any {
         
         return try self.box(default: value, at: codingPath)
+            ?? self.reencode(value, at: codingPath)
     }
     
-    public func box<T: Encodable>(default value: T, at codingPath: [CodingKey]) throws -> Any {
+    public func box<T: Encodable>(default value: T, at codingPath: [CodingKey]) throws -> Any? {
         
         switch value {
         // FIXME: remove when SR-5206 is fixed
         case is BrokenEncode: return try self.reencode(value, at: codingPath, closure: { try ($0 as! BrokenEncode).__encode(to: $1) })
-        default: return try self.reencode(value, at: codingPath)
+        default: return nil
         }
     }
     
@@ -324,7 +352,7 @@ public extension AnyEncoderBase {
 
         case .keyed(let container, key: let key):
             
-            container.set(toStorage: encoded, forKey: key)
+            container.setToStorage(encoded, forKey: key)
         }
     }
 }
@@ -356,12 +384,6 @@ public extension EncoderBase {
     
     public init(options: Options, userInfo: [CodingUserInfoKey: Any]) {
         self.init(codingPath: [], options: options, userInfo: userInfo, reference: nil)
-    }
-}
-
-public extension EncoderBase where Self.Options == Void {
-    public init(userInfo: [CodingUserInfoKey: Any]) {
-        self.init(options: (), userInfo: userInfo)
     }
 }
 
@@ -403,7 +425,8 @@ public extension EncoderJSONBase {
     public func box<T: Encodable>(_ value: T, at codingPath: [CodingKey]) throws -> Any {
         
         return try self.box(json: value, at: codingPath)
-                ?? self.reencode(value, at: codingPath)
+            ?? self.box(default: value, at: codingPath)
+            ?? self.reencode(value, at: codingPath)
     }
     
     func box<T: Encodable>(json value: T, at codingPath: [CodingKey]) throws -> Any? {
@@ -473,7 +496,7 @@ public extension EncoderJSONBase {
                     value,
                     EncodingError.Context.init(
                         codingPath: codingPath,
-                        debugDescription: "Unable to encode \(T.self) (\(value)) directly in JSON. Use nonConformingFloatEncodingStrategy.convertToString to specify how the value should be encoded."
+                        debugDescription: "Unable to encode \(T.self) (\(value)) directly. Use nonConformingFloatEncodingStrategy.convertToString to specify how the value should be encoded."
                     )
                 )
             }
@@ -495,12 +518,12 @@ public extension EncoderJSONBase {
 /// has to be a class to set to an already set object
 public protocol EncoderKeyedContainerContainer: class {
     
-    func set(toStorage value: Any, forKey key: AnyHashable)
+    func setToStorage(_ value: Any, forKey key: AnyHashable)
 }
 
 extension NSMutableDictionary: EncoderKeyedContainerContainer {
     
-    public func set(toStorage value: Any, forKey key: AnyHashable) {
+    public func setToStorage(_ value: Any, forKey key: AnyHashable) {
         self[key] = value
     }
 }
@@ -517,7 +540,39 @@ public protocol EncoderKeyedContainer: KeyedEncodingContainerProtocol {
     
     // methods
     
-    // TODO: add all methods
+    var usesStringValue: Bool {get}
+    
+    var codingPath: [CodingKey] {get}
+    func currentPath(_ key: CodingKey) -> [CodingKey]
+    
+    func _key(from key: CodingKey) -> AnyHashable
+    func set(_ encoded: Any, forKey key: CodingKey)
+    
+    // encode
+    
+    mutating func encodeNil(              forKey key: Key) throws
+    mutating func encode(_ value: Bool  , forKey key: Key) throws
+    mutating func encode(_ value: Int   , forKey key: Key) throws
+    mutating func encode(_ value: Int8  , forKey key: Key) throws
+    mutating func encode(_ value: Int16 , forKey key: Key) throws
+    mutating func encode(_ value: Int32 , forKey key: Key) throws
+    mutating func encode(_ value: Int64 , forKey key: Key) throws
+    mutating func encode(_ value: UInt  , forKey key: Key) throws
+    mutating func encode(_ value: UInt8 , forKey key: Key) throws
+    mutating func encode(_ value: UInt16, forKey key: Key) throws
+    mutating func encode(_ value: UInt32, forKey key: Key) throws
+    mutating func encode(_ value: UInt64, forKey key: Key) throws
+    mutating func encode(_ value: String, forKey key: Key) throws
+    mutating func encode(_ value: Float , forKey key: Key) throws
+    mutating func encode(_ value: Double, forKey key: Key) throws
+    mutating func encode<T : Encodable>(_ value: T, forKey key: Key) throws
+    
+    // containers
+    
+    mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey>
+    mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer
+    mutating func superEncoder() -> Encoder
+    mutating func superEncoder(forKey key: Key) -> Encoder
 }
 
 public extension EncoderKeyedContainer {
@@ -530,7 +585,7 @@ public extension EncoderKeyedContainer {
         return self.encoder.codingPath + self.nestedPath
     }
     
-    func currentPath(_ key: CodingKey) -> [CodingKey] {
+    public func currentPath(_ key: CodingKey) -> [CodingKey] {
         return self.codingPath + [key]
     }
     
@@ -552,7 +607,7 @@ public extension EncoderKeyedContainer {
     
     public func set(_ encoded: Any, forKey key: CodingKey) {
         
-        self.container.set(toStorage: encoded, forKey: self._key(from: key))
+        self.container.setToStorage(encoded, forKey: self._key(from: key))
     }
     
     // MARK: - KeyedEncodingContainerProtocol Methods
@@ -625,11 +680,15 @@ public extension EncoderKeyedContainer {
 public protocol EncoderUnkeyedContainerContainer: class {
     
     var count: Int {get}
-    func add(_ value: Any)
+    func setToStorage(_ value: Any)
     func replaceObject(at index: Int, with object: Any)
 }
 
-extension NSMutableArray: EncoderUnkeyedContainerContainer {}
+extension NSMutableArray: EncoderUnkeyedContainerContainer {
+    public func setToStorage(_ value: Any) {
+        self.add(value)
+    }
+}
 
 public protocol EncoderUnkeyedContainer : UnkeyedEncodingContainer {
     
@@ -643,7 +702,41 @@ public protocol EncoderUnkeyedContainer : UnkeyedEncodingContainer {
     
     // methods
     
-    // TODO: add all methods
+    /// The path of coding keys taken to get to this point in encoding.
+    var codingPath: [CodingKey] {get}
+    var currentPath: [CodingKey] {get}
+    
+    /// The number of elements encoded into the container.
+    var count: Int {get}
+    var currentIndex: Int {get}
+    var currentKey: CodingKey {get}
+    
+    func set(_ encoded: Any)
+    
+    // encode
+    
+    mutating func encodeNil(            ) throws
+    mutating func encode(_ value: Bool  ) throws
+    mutating func encode(_ value: Int   ) throws
+    mutating func encode(_ value: Int8  ) throws
+    mutating func encode(_ value: Int16 ) throws
+    mutating func encode(_ value: Int32 ) throws
+    mutating func encode(_ value: Int64 ) throws
+    mutating func encode(_ value: UInt  ) throws
+    mutating func encode(_ value: UInt8 ) throws
+    mutating func encode(_ value: UInt16) throws
+    mutating func encode(_ value: UInt32) throws
+    mutating func encode(_ value: UInt64) throws
+    mutating func encode(_ value: Float ) throws
+    mutating func encode(_ value: Double) throws
+    mutating func encode(_ value: String) throws
+    mutating func encode<T: Encodable>(_ value: T) throws
+    
+    // containers
+    
+    mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey>
+    mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer
+    mutating func superEncoder() -> Encoder
 }
 
 public extension EncoderUnkeyedContainer {
@@ -672,7 +765,7 @@ public extension EncoderUnkeyedContainer {
     
     public func set(_ encoded: Any) {
         
-        self.container.add(encoded)
+        self.container.setToStorage(encoded)
     }
     
     // MARK: - UnkeyedEncodingContainer Methods
@@ -699,7 +792,7 @@ public extension EncoderUnkeyedContainer {
         
         let container = self.encoder.keyedContainerContainer()
         
-        self.container.add(container)
+        self.set(container)
     
         return self.encoder.keyedContainer(
             encoder: self.encoder,
@@ -712,7 +805,7 @@ public extension EncoderUnkeyedContainer {
         
         let container = self.encoder.unkeyedContainerContainer()
         
-        self.container.add(container)
+        self.set(container)
         
         return Self.init(
             encoder: self.encoder,
@@ -723,7 +816,7 @@ public extension EncoderUnkeyedContainer {
 
     public mutating func superEncoder() -> Encoder {
 
-        defer { self.container.add("placeholder") }
+        defer { self.set("placeholder") }
         
         return type(of: self.encoder).init(
             codingPath: self.currentPath,
@@ -734,6 +827,7 @@ public extension EncoderUnkeyedContainer {
     }
 }
 
+// MARK: Temporary encoding workarounds
 
 // FIXME: remove when SR-5206 is fixed
 func assertTypeIsEncodable(_ _type: Any.Type, in wrappingType: Any.Type) {

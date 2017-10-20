@@ -48,7 +48,7 @@ public struct CoderTesting {
         }
     }
     
-    public static func testingValues<T: SignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> [T] {
+    public static func testingValues<T: SignedInteger & FixedWidthInteger>(for: T.Type) -> [T] {
         return [
             .max,
             .min,
@@ -60,7 +60,7 @@ public struct CoderTesting {
         ]
     }
     
-    public static func testingValues<T: UnsignedInteger & FixedWidthInteger & Codable>(for: T.Type) -> [T] {
+    public static func testingValues<T: UnsignedInteger & FixedWidthInteger>(for: T.Type) -> [T] {
         return [
             .max,
             .min,
@@ -71,7 +71,7 @@ public struct CoderTesting {
         ]
     }
     
-    public static func testingValues<T: FloatingPoint & Codable>(for: T.Type) -> [T] {
+    public static func testingValues<T: FloatingPoint>(for: T.Type) -> [T] {
         
         let type = "\(T.self)"
         
@@ -205,8 +205,6 @@ public struct CoderTesting {
     public typealias EncodeStats = (codingPathOfFirstExpected: [CodingKey]?, willCrashIfJSONEncoder: Bool, topLevelType: CodedType)
     public typealias DecodeStats = (codingPathOfFirstExpected: [CodingKey]?, topLevelType: CodedType)
     
-    public struct NotEncodable: Encodable {}
-    
     /**
      returns:
      codingPath: the codingPath of the first expected type encountered
@@ -336,6 +334,7 @@ public struct CoderTesting {
             try self.check(value, at: codingPath)
             
             return try self.box(default: value, at: codingPath)
+                ?? self.reencode(value, at: codingPath)
         }
         
         // need to break the storage count fix to test if JSONEncoder will crash
@@ -354,7 +353,7 @@ public struct CoderTesting {
                 case depth: return nil
                 default:
                     if self.storage.count > depth + 1 {
-                        fatalError("\(type(of: value)) encoded multiple containers to storage (this is an encoder error; use .canEncodeNewValue and remove storage after throwing). codingPath: \(codingPath)")
+                        fatalError("\(type(of: value)) encoded multiple containers to storage (this is an encoder failure). codingPath: \(codingPath)")
                     } else {
                         fatalError("encoder lost values from storage while encoding \(type(of: value)).")
                     }
@@ -449,6 +448,7 @@ public struct CoderTesting {
             try self.check(value, to: T.self, at: codingPath)
             
             return try self.unbox(default: value, at: codingPath)
+                ?? self.redecode(value, at: codingPath)
         }
         
         func keyedContainerContainer(_ value: Any, at codingPath: [CodingKey], nested: Bool) throws -> DecoderKeyedContainerContainer {
@@ -476,24 +476,24 @@ public struct CoderTesting {
     private struct LimitingKeyedContainer: DecoderKeyedContainerContainer {
         
         func value(forStringValue key: String) -> Any? {
-            if let key = Int(key) {
-                return intValueKeys.contains(key) ? () : nil
-            } else {
+            if key == "throw KeyNotFound" {
                 return nil
+            } else {
+                return ()
             }
         }
         func value(forIntValue key: Int) -> Any? {
-            return intValueKeys.contains(key) ? () : nil
+            if key == "throw KeyNotFound".hashValue {
+                return nil
+            } else {
+                return ()
+            }
         }
         var stringValueKeys: [String] {
-            return intValueKeys.map { $0.description }
+            return ["throw KeyNotFound"]
         }
         var intValueKeys: [Int] {
-            var keys = [] as [Int]
-            for i in 1...maxCount {
-                keys.append(i)
-            }
-            return keys
+            return ["throw KeyNotFound".hashValue]
         }
     }
     
@@ -501,20 +501,22 @@ public struct CoderTesting {
     
     public struct Objects {
         
-        // MARK: NotAKey
+        // MARK: Optional
         
-        public struct NotAKey: CodingKey {
-            public var stringValue: String {
-                fatalError("\(self)")
+        public struct TestOptional<T>: Codable {
+            
+            public var value: T?
+            
+            public init(_ value: T?) {
+                self.value = value
             }
-            public init?(stringValue: String) {
-                fatalError("\(self)")
+            
+            public func encode(to encoder: Encoder) throws {
+                try self.value.__encode(to: encoder)
             }
-            public var intValue: Int? {
-                fatalError("\(self)")
-            }
-            public init?(intValue: Int) {
-                fatalError("\(self)")
+            
+            public init(from decoder: Decoder) throws {
+                self.value = try .init(__from: decoder)
             }
         }
         
@@ -551,63 +553,110 @@ public struct CoderTesting {
         
         // MARK: Keyed
         
-        // FIXME: revert to Dictionary when SR-5206 is fixed
-        public typealias Keyed = CodingDictionary
         
-        // MARK: SubKeyed1
-        
-        public struct SubKeyed1<K: Hashable, V>: Codable {
+        private struct TestKey: CodingKey {
             
-            public var elements: [K: V]
+            var stringValue: String = "test"
+            var intValue: Int? = 1
             
-            public init(key: K, value: V) {
-                self.elements = [key: value]
+            init?(stringValue: String) {
+                if stringValue != "test" {
+                    return nil
+                }
             }
             
-            public init(_ elements: [K: V]) {
-                self.elements = elements
+            init?(intValue: Int) {
+                if intValue != 1 {
+                    return nil
+                }
+            }
+            
+            static var test = TestKey(intValue: 1)!
+        }
+        
+        private static func encodeKeyed<T>(to encoder: Encoder, value: T, in _type: Any.Type) throws {
+            
+            assertTypeIsEncodable(T.self, in: _type)
+            
+            var container = encoder.container(keyedBy: TestKey.self)
+            try (value as! Encodable).__encode(to: &container, forKey: .test)
+        }
+        
+        private static func decodeKeyed<T>(from decoder: Decoder, _: T.Type, in _type: Any.Type) throws -> T {
+            
+            assertTypeIsDecodable(T.self, in: _type)
+            
+            let container = try decoder.container(keyedBy: TestKey.self)
+            return try (T.self as! Decodable.Type).init(__from: container, forKey: .test) as! T
+        }
+        
+        public struct Keyed<T>: Codable {
+            
+            public var value: T
+            
+            public init(_ value: T) {
+                
+                self.value = value
             }
             
             public func encode(to encoder: Encoder) throws {
                 
-                _ = encoder.container(keyedBy: NotAKey.self)
-                // FIXME: revert to default
-                try self.elements.__encode(to: encoder)
+                try Objects.encodeKeyed(to: encoder, value: self.value, in: Keyed.self)
             }
             
             public init(from decoder: Decoder) throws {
-                _ = try decoder.container(keyedBy: NotAKey.self)
-                // FIXME: revert to default
-                self.elements = try .init(__from: decoder)
+                
+                self.value = try Objects.decodeKeyed(from: decoder, T.self, in: Keyed.self)
+            }
+        }
+        
+        // MARK: SubKeyed1
+        
+        public struct SubKeyed1<T>: Codable {
+            
+            public var value: T
+            
+            public init(_ value: T) {
+                
+                self.value = value
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                
+                _ = encoder.container(keyedBy: TestKey.self)
+                try Objects.encodeKeyed(to: encoder, value: self.value, in: SubKeyed1.self)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                
+                _ = try decoder.container(keyedBy: TestKey.self)
+                self.value = try Objects.decodeKeyed(from: decoder, T.self, in: SubKeyed1.self)
             }
         }
         
         // MARK: SubKeyed2
         
-        public struct SubKeyed2<K: Hashable, V>: Codable {
+        public struct SubKeyed2<T>: Codable {
             
-            public var elements: [K: V]
+            public var value: T
             
-            public init(key: K, value: V) {
-                self.elements = [key: value]
-            }
-            
-            public init(_ elements: [K: V]) {
-                self.elements = elements
+            public init(_ value: T) {
+                
+                self.value = value
             }
             
             public func encode(to encoder: Encoder) throws {
                 
-                var c = encoder.container(keyedBy: NotAKey.self)
+                var c = encoder.container(keyedBy: TestKey.self)
                 let superEncoder = c.superEncoder()
-                try self.elements.__encode(to: superEncoder)
+                try Objects.encodeKeyed(to: superEncoder, value: self.value, in: SubKeyed2.self)
             }
             
             public init(from decoder: Decoder) throws {
                 
-                let c = try decoder.container(keyedBy: NotAKey.self)
+                let c = try decoder.container(keyedBy: TestKey.self)
                 let superDecoder = try c.superDecoder()
-                self.elements = try Dictionary(__from: superDecoder)
+                self.value = try Objects.decodeKeyed(from: superDecoder, T.self, in: SubKeyed2.self)
             }
         }
         
@@ -615,20 +664,16 @@ public struct CoderTesting {
             
             public var value: T
             
-            init(_ value: T) {
+            public init(_ value: T) {
                 self.value = value
-            }
-            
-            enum CodingKeys: Int, CodingKey {
-                case value = 1
             }
             
             public func encode(to encoder: Encoder) throws {
                 
                 assertTypeIsEncodable(T.self, in: type(of: self))
                 
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                var nestedContainer1 = container.nestedUnkeyedContainer(forKey: .value)
+                var container = encoder.container(keyedBy: TestKey.self)
+                var nestedContainer1 = container.nestedUnkeyedContainer(forKey: .test)
                 var nestedContainer2 = nestedContainer1.nestedUnkeyedContainer()
                 
                 try (self.value as! Encodable).__encode(to: &nestedContainer2)
@@ -638,8 +683,8 @@ public struct CoderTesting {
                 
                 assertTypeIsDecodable(T.self, in: KeyedNestedUnkeyed.self)
                 
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                var nestedContainer1 = try container.nestedUnkeyedContainer(forKey: .value)
+                let container = try decoder.container(keyedBy: TestKey.self)
+                var nestedContainer1 = try container.nestedUnkeyedContainer(forKey: .test)
                 var nestedContainer2 = try nestedContainer1.nestedUnkeyedContainer()
                 
                 self.value = try (T.self as! Decodable.Type).init(__from: &nestedContainer2) as! T
@@ -650,40 +695,76 @@ public struct CoderTesting {
             
             public var value: T
             
-            init(_ value: T) {
+            public init(_ value: T) {
                 self.value = value
-            }
-            
-            public enum CodingKeys: Int, CodingKey {
-                case value = 1
             }
             
             public func encode(to encoder: Encoder) throws {
                 
                 assertTypeIsEncodable(T.self, in: type(of: self))
                 
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                var nestedContainer1 = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
-                var nestedContainer2 = nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                var container = encoder.container(keyedBy: TestKey.self)
+                var nestedContainer1 = container.nestedContainer(keyedBy: TestKey.self, forKey: .test)
+                var nestedContainer2 = nestedContainer1.nestedContainer(keyedBy: TestKey.self, forKey: .test)
                 
-                try (self.value as! Encodable).__encode(to: &nestedContainer2, forKey: .value)
+                try (self.value as! Encodable).__encode(to: &nestedContainer2, forKey: .test)
             }
             
             public init(from decoder: Decoder) throws {
                 
                 assertTypeIsDecodable(T.self, in: KeyedNestedKeyed.self)
                 
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                let nestedContainer1 = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
-                let nestedContainer2 = try nestedContainer1.nestedContainer(keyedBy: CodingKeys.self, forKey: .value)
+                let container = try decoder.container(keyedBy: TestKey.self)
+                let nestedContainer1 = try container.nestedContainer(keyedBy: TestKey.self, forKey: .test)
+                let nestedContainer2 = try nestedContainer1.nestedContainer(keyedBy: TestKey.self, forKey: .test)
                 
-                self.value = try (T.self as! Decodable.Type).init(__from: nestedContainer2, forKey: .value) as! T
+                self.value = try (T.self as! Decodable.Type).init(__from: nestedContainer2, forKey: .test) as! T
             }
         }
         
         // MARK: Unkeyed
         
-        public typealias Unkeyed = CodingArray
+        public struct Unkeyed<E>: Codable {
+            
+            public var elements: [E]
+            
+            public init(_ element: E) {
+                self.elements = [element]
+            }
+            
+            public init(_ array: [E]) {
+                self.elements = array
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                try self.elements.__encode(to: encoder)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                self.elements = try .init(__from: decoder)
+            }
+        }
+        
+        public struct TestSet<E: Hashable>: Codable {
+            
+            public var elements: Set<E>
+            
+            public init(_ element: E) {
+                self.elements = Set([element])
+            }
+            
+            public init(_ elements: Set<E>) {
+                self.elements = elements
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                try self.elements.__encode(to: encoder)
+            }
+            
+            public init(from decoder: Decoder) throws {
+                self.elements = try .init(__from: decoder)
+            }
+        }
         
         public struct SubUnkeyed1<T>: Codable {
             
@@ -742,7 +823,7 @@ public struct CoderTesting {
             
             public var value: T
             
-            init(_ value: T) {
+            public init(_ value: T) {
                 self.value = value
             }
             
@@ -773,7 +854,7 @@ public struct CoderTesting {
             
             public var value: T
             
-            init(_ value: T) {
+            public init(_ value: T) {
                 self.value = value
             }
             
@@ -871,25 +952,27 @@ public struct CoderTesting {
         
         public struct KeyNotFoundCheck: Decodable, CoderTestingSelfThrowingValue {
             
-            public struct ARandomKey: CodingKey {
-                public var stringValue: String = "1000"
+            public struct NotFound: CodingKey {
+                public var stringValue: String = "throw KeyNotFound"
                 
                 public init() {}
                 
                 public init(stringValue: String) {}
                 
-                public var intValue: Int? = 1000
+                public var intValue: Int? = "throw KeyNotFound".hashValue
                 
                 public init?(intValue: Int) {}
             }
             
+            public static var errorType: CoderTesting.DecodingErrorType = .keyNotFound(stringValue: "throw KeyNotFound", intValue: "throw KeyNotFound".hashValue)
+            
             public init(from decoder: Decoder) throws {
                 
-                let container = try decoder.container(keyedBy: ARandomKey.self)
+                let container = try decoder.container(keyedBy: NotFound.self)
                 
                 do {
                     
-                    _ = try container.decode(Bool.self, forKey: ARandomKey())
+                    _ = try container.decode(String.self, forKey: NotFound())
                     
                     throw DecodingError.dataCorrupted(
                         DecodingError.Context(
@@ -918,7 +1001,7 @@ public struct CoderTesting {
                 
                 do {
                     for _ in 1...300 {
-                        _ = try container.decode(Bool.self)
+                        _ = try container.decode(String.self)
                     }
                     
                 } catch DecodingError.valueNotFound(_, let context) {
@@ -955,137 +1038,8 @@ public struct CoderTesting {
     }
 }
 
-/// an identifier for a Encodable and/or Decodable value that overrides the path throwing
+/// an identifier for a value that throws by itself when Encoded and/or Decoded
 public protocol CoderTestingSelfThrowingValue {}
-
-
-// MARK: temporary
-// FIXME: remove when SR-5206 is fixed
-
-public extension Optional {
-    
-    public func codingTemporary() -> CodingOptional<Wrapped> {
-        return CodingOptional(self)
-    }
-}
-
-public struct CodingOptional<T>: Codable {
-    
-    public var optional: T?
-    
-    public init(_ optional: T?) {
-        self.optional = optional
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        try self.optional.__encode(to: encoder)
-    }
-    
-    public init(from decoder: Decoder) throws {
-        self.optional = try .init(__from: decoder)
-    }
-    
-    public func swiftType() -> T? {
-        return self.optional
-    }
-}
-
-public extension Array {
-    
-    public func codingTemporary() -> CodingArray<Element> {
-        return CodingArray(self)
-    }
-}
-
-public struct CodingArray<E>: Codable {
-    
-    public var elements: [E]
-    
-    public init(_ element: E) {
-        self.elements = [element]
-    }
-    
-    public init(_ array: [E]) {
-        self.elements = array
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        try self.elements.__encode(to: encoder)
-    }
-    
-    public init(from decoder: Decoder) throws {
-        self.elements = try .init(__from: decoder)
-    }
-    
-    public func swiftType() -> [E] {
-        return self.elements
-    }
-}
-
-public extension Set {
-    
-    public func codingTemporary() -> CodingSet<Element> {
-        return CodingSet(self)
-    }
-}
-
-public struct CodingSet<E: Hashable>: Codable {
-    
-    public var elements: Set<E>
-    
-    public init(_ element: E) {
-        self.elements = Set([element])
-    }
-    
-    public init(_ elements: Set<E>) {
-        self.elements = elements
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        try self.elements.__encode(to: encoder)
-    }
-    
-    public init(from decoder: Decoder) throws {
-        self.elements = try .init(__from: decoder)
-    }
-    
-    public func swiftType() -> Set<E> {
-        return self.elements
-    }
-}
-
-public extension Dictionary {
-    
-    public func codingTemporary() -> CodingDictionary<Key, Value> {
-        return CodingDictionary(self)
-    }
-}
-
-public struct CodingDictionary<K: Hashable, V>: Codable {
-    
-    public var elements: [K : V]
-    
-    public init(key: K, value: V) {
-        
-        self.elements = [key: value]
-    }
-    
-    public init(_ elements: [K : V]) {
-        self.elements = elements
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        try self.elements.__encode(to: encoder)
-    }
-    
-    public init(from decoder: Decoder) throws {
-        self.elements = try .init(__from: decoder)
-    }
-    
-    public func swiftType() -> [K : V] {
-        return self.elements
-    }
-}
 
 // MARK: CharacterSet
 
@@ -1103,221 +1057,4 @@ fileprivate extension CharacterSet {
         return result
     }
 }
-
-
-
-//// MARK: EquatableOptional
-//
-//public enum EquatableOptional<Wrapped: Equatable>: Codable, Equatable, ExpressibleByNilLiteral {
-//
-//    case some(Wrapped)
-//    case none
-//
-//    public init(_ wrapped: Wrapped) {
-//        self = .some(wrapped)
-//    }
-//
-//    public func asOptional() -> Wrapped? {
-//        switch self {
-//        case .some(let wrapped): return wrapped
-//        case .none: return nil
-//        }
-//    }
-//
-//    // ExpressibleByNilLiteral
-//
-//    public init(nilLiteral: ()) {
-//        self = .none
-//    }
-//
-//    // Codable
-//
-//    public func encode(to encoder: Encoder) throws {
-//
-//        // FIXME: use default when SR-5206 is fixed
-//        try self.asOptional().__encode(to: encoder)
-//    }
-//
-//    public init(from decoder: Decoder) throws {
-//
-//        // FIXME: use default when SR-5206 is fixed
-//        switch try Optional<Wrapped>(__from: decoder) {
-//        case .some(let wrapped): self = .some(wrapped)
-//        case .none: self = .none
-//        }
-//    }
-//
-//    // Equatable
-//
-//    public static func ==(lhs: EquatableOptional, rhs: EquatableOptional) -> Bool {
-//        return lhs.asOptional() == rhs.asOptional()
-//    }
-//}
-
-//public protocol ArrayMimicable: Codable, ExpressibleByArrayLiteral, RangeReplaceableCollection {
-//    var elements: [Element] {get set}
-//    init(_ elements: [Element])
-//
-//    func index(after i: Array<Element>.Index) -> Array<Element>.Index
-//    var startIndex: Array<Element>.Index {get}
-//    var endIndex: Array<Element>.Index {get}
-//    subscript(position: Array<Element>.Index) -> Element {get set}
-//
-//    func makeIterator() -> Array<Element>.Iterator
-//
-//    init(arrayLiteral elements: Element...)
-//
-//    init()
-//
-//    func encode(to encoder: Encoder) throws
-//    init(from decoder: Decoder) throws
-//}
-//
-//extension ArrayMimicable {
-//
-//    public func index(after i: Array<Element>.Index) -> Array<Element>.Index {
-//        return self.elements.index(after: i)
-//    }
-//
-//    public var startIndex: Array<Element>.Index {
-//        return self.elements.startIndex
-//    }
-//
-//    public var endIndex: Array<Element>.Index {
-//        return self.elements.endIndex
-//    }
-//
-//    public subscript(position: Array<Element>.Index) -> Element {
-//        get {
-//            return self.elements[position]
-//        }
-//        set {
-//            self.elements[position] = newValue
-//        }
-//    }
-//
-//    public func makeIterator() -> Array<Element>.Iterator {
-//        return self.elements.makeIterator()
-//    }
-//
-//    public init(arrayLiteral elements: Element...) {
-//        self.init(elements)
-//    }
-//
-//    public init() {
-//        self.init([] as [Element])
-//    }
-//
-//    public func encode(to encoder: Encoder) throws {
-//
-//        try self.elements.__encode(to: encoder)
-//    }
-//
-//    public init(from decoder: Decoder) throws {
-//
-//        self.init(try Array<Element>(__from: decoder))
-//    }
-//}
-
-//// EquatableArray
-//
-//public struct EquatableArray<E: Equatable>: ArrayMimicable, Equatable {
-//
-//    public typealias Element = E
-//
-//    public var elements: [Element]
-//
-//    public init(_ elements: [Element]) {
-//        self.elements = elements
-//    }
-//
-//    public static func ==(lhs: EquatableArray, rhs: EquatableArray) -> Bool {
-//        return lhs.elements == rhs.elements
-//    }
-//}
-
-
-//public protocol DictionaryMimicable: Codable, ExpressibleByDictionaryLiteral, Collection where Key: Hashable {
-//
-//    var elements: [Key: Value] {get set}
-//    init(_ elements: [Key: Value])
-//
-//    init(dictionaryLiteral elements: (Key, Value)...)
-//
-//    func index(after i: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Index
-//    var endIndex: Dictionary<Key, Value>.Index {get}
-//    var startIndex: Dictionary<Key, Value>.Index {get}
-//    subscript(position: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Element {get}
-//
-//    func encode(to encoder: Encoder) throws
-//    init(from decoder: Decoder) throws
-//
-//    init()
-//}
-//
-//extension DictionaryMimicable {
-//
-//    public init(dictionaryLiteral elements: (Key, Value)...) {
-//        self.init(Dictionary(elements))
-//    }
-//
-//    public func index(after i: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Index {
-//        return self.elements.index(after: i)
-//    }
-//
-//    public var endIndex: Dictionary<Key, Value>.Index {
-//        return self.elements.endIndex
-//    }
-//
-//    public var startIndex: Dictionary<Key, Value>.Index {
-//        return self.elements.startIndex
-//    }
-//
-//    public subscript(position: Dictionary<Key, Value>.Index) -> Dictionary<Key, Value>.Element {
-//        return self.elements[position]
-//    }
-//
-//    public subscript(key: Key) -> Value? {
-//        get {
-//            return self.elements[key]
-//        }
-//        set {
-//            self.elements[key] = newValue
-//        }
-//    }
-//
-//    public func encode(to encoder: Encoder) throws {
-//
-//        // FIXME: use default when SR-5206 is fixed
-//        try self.elements.__encode(to: encoder)
-//    }
-//
-//    public init(from decoder: Decoder) throws {
-//        // FIXME: use default when SR-5206 is fixed
-//        self.init(try Dictionary(__from: decoder))
-//    }
-//
-//    public init() {
-//        self.init([:])
-//    }
-//}
-
-//// EquatableDictionary
-//
-//public struct EquatableDictionary<K: Hashable, V: Equatable>: DictionaryMimicable, Equatable {
-//    public typealias Key = K
-//    public typealias Value = V
-//
-//    public var elements: [K: V]
-//
-//    public init(_ elements: [K: V]) {
-//        self.elements = elements
-//    }
-//
-//    // Equatable
-//
-//    public static func ==(lhs: EquatableDictionary, rhs: EquatableDictionary) -> Bool {
-//        return lhs.elements == rhs.elements
-//    }
-//}
 
