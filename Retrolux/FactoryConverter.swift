@@ -46,8 +46,42 @@ extension FactoryDecoder {
 
 // extensions
 
-//extension JSONEncoder: FactoryEncoder {}
-//extension JSONDecoder: FactoryDecoder {}
+extension Encodable {
+    public func encode(with encoder: JSONEncoder) throws -> Data {
+        return try encoder.encode(self)
+    }
+}
+
+extension Decodable {
+    public init(from data: Data, using decoder: JSONDecoder) throws {
+        self = try decoder.decode(Self.self, from: data)
+    }
+}
+
+extension JSONEncoder: FactoryEncoder {
+    
+    public func encode<T>(_ value: T) throws -> Body {
+        
+        guard value is Encodable else {
+            throw self.unsupported(value)
+        }
+
+        let data = try (value as! Encodable).encode(with: self)
+
+        return Body(.data(data), [.contentType: "application/json", .contentLength: data.count.description])
+    }
+}
+
+extension JSONDecoder: FactoryDecoder {
+    public func decode<T>(_ response: Response<AnyData>) throws -> T {
+        
+        guard let metaType = T.self as? Decodable.Type, !(metaType == Decodable.self || metaType == Codable.self) else {
+            throw self.unsupported(T.self)
+        }
+        
+        return try metaType.init(from: response.interpret().asData(), using: self) as! T
+    }
+}
 
 extension JSONSerialization: FactoryConverter {
     
@@ -55,7 +89,7 @@ extension JSONSerialization: FactoryConverter {
         
         let data = try JSONSerialization.data(withJSONObject: value)
         
-        return Body(.data(data), [.contentType: JSONSerialization.contentType, .contentLength: data.count.description])
+        return Body(.data(data), [.contentType: "application/json", .contentLength: data.count.description])
     }
     
     public func decode<T>(_ response: Response<AnyData>) throws -> T {

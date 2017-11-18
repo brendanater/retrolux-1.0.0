@@ -344,52 +344,68 @@ public extension String {
     
 }
 
-/// An enum for the default REST httpMethods and statusConfirmations ( (Int)->Bool )
-//public enum RestfulHTTPMethod {
-//    /// defines httpMethod: "GET"    and statusConfirmation: 200.
-//    case list
-//    /// defines httpMethod: "POST"   and statusConfirmation: 201.
-//    case create
-//    /// defines httpMethod: "GET"    and statusConfirmation: 200.
-//    case retrieve
-//    /// defines httpMethod: "PUT"    and statusConfirmation: 200
-//    case update
-//    /// defines httpMethod: "PATCH"  and statusConfirmation: 200
-//    case partialUpdate
-//    /// defines httpMethod: "DELETE" and statusConfirmation: 204.
-//    case destroy
-//
-//    public var httpMethod: String {
-//        switch self {
-//        case .list, .retrieve: return "GET"
-//        case .create: return "POST"
-//        case .update: return "PUT"
-//        case .partialUpdate: return "PATCH"
-//        case .destroy: return "DELETE"
-//        }
-//    }
-//
-//    public var statusConfirmation: (Int)->Bool {
-//        switch self {
-//        case .list, .retrieve, .update, .partialUpdate: return { $0 == 200 }
-//        case .create: return { $0 == 201 }
-//        case .destroy: return { $0 == 204 }
-//        }
-//    }
-//}
 
-extension NSMutableURLRequest {
-    // TODO: uncomment when methods from extensions can be overridden
-//    /// Sets the httpMethod of the REST method
-//    open func set(restful: RestfulHTTPMethod) {
-//        self.httpMethod = restful.httpMethod
-//    }
-}
+// String.Encoding
 
-extension URLRequest {
+extension String.Encoding {
     
-    /// Sets the httpMethod of the REST method
-//    public mutating func set(restful: RestfulHTTPMethod) {
-//        self.httpMethod = restful.httpMethod
-//    }
+    /// for HTTP header charset e.g. "; charset=UTF-8"
+    public var charset: String? {
+        switch self {  // nil == couldn't find
+        case .ascii:            return "US-ASCII" // https://en.wikipedia.org/wiki/ASCII "ASCII"
+        case .iso2022JP:        return "ISO-2022-JP"
+        case .isoLatin1:        return "ISO-8859-1"
+        case .isoLatin2:        return "ISO-8859-2"
+        case .japaneseEUC:      return "EUC-JP"
+        case .macOSRoman:       return "macintosh" // https://en.wikipedia.org/wiki/Mac_OS_Roman JAVA: "MacRoman"
+        case .nextstep:         return nil
+        case .nonLossyASCII:    return nil
+        case .shiftJIS:         return "Shift_JIS"
+        case .symbol:           return nil
+        case .utf8:             return "UTF-8"
+        case .unicode:          return "UTF-16"
+        case .utf16:            return "UTF-16"
+        case .utf16BigEndian:   return "UTF-16BE"
+        case .utf16LittleEndian:return "UTF-16LE"
+        case .utf32:            return "UTF-32"
+        case .utf32BigEndian:   return "UTF-32BE"
+        case .utf32LittleEndian:return "UTF-32LE"
+        case .windowsCP1250:    return nil
+        case .windowsCP1251:    return nil
+        case .windowsCP1252:    return "windows-1252"
+        case .windowsCP1253:    return nil
+        case .windowsCP1254:    return nil
+        default: return nil
+        }
+    }
+    
+    
+    public init?(charset: String) {
+        
+        switch charset.uppercased() {
+        case "US-ASCII"     : self = .ascii
+        case "ISO-2022-JP"  : self = .iso2022JP
+        case "ISO-8859-1"   : self = .isoLatin1
+        case "ISO-8859-2"   : self = .isoLatin2
+        case "EUC-JP"       : self = .japaneseEUC
+        case "SHIFT_JIS"    : self = .shiftJIS // "Shift_JIS"
+        case "UTF-8"        : self = .utf8
+        case "UTF-16"       : self = .utf16
+        case "UTF-16BE"     : self = .utf16BigEndian
+        case "UTF-16LE"     : self = .utf16LittleEndian
+        case "UTF-32"       : self = .utf32
+        case "UTF-32BE"     : self = .utf32BigEndian
+        case "UTF-32LE"     : self = .utf32LittleEndian
+            
+        case "ASCII"        : self = .ascii // IANA deprecated
+        case "ANSI"         : self = .windowsCP1252 // common mislabel
+        case "MACROMAN"     : self = .macOSRoman // java "MacRoman"
+        default:
+            switch charset.lowercased() {
+            case "macintosh"    : self = .macOSRoman
+            case "windows-1252" : self = .windowsCP1252
+            default: return nil
+            }
+        }
+    }
 }

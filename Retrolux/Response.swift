@@ -39,16 +39,16 @@ public struct Response<T> {
         return self.body.map { .body($0) } ?? .error(self.error)
     }
     
+    private enum NoError: Error {
+        case noBodyOrErrorInInterpretedResponse
+    }
+    
     public func interpret() throws -> T {
         
         switch self.interpreted() {
         case .body(let body): return body
         case .error(let error): throw error ?? NoError.noBodyOrErrorInInterpretedResponse
         }
-    }
-    
-    private enum NoError: Error {
-        case noBodyOrErrorInInterpretedResponse
     }
     
     // map

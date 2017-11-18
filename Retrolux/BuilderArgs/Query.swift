@@ -58,10 +58,6 @@ public struct Query: RequestArg, RequestBody {
         self.items = items
     }
     
-    public init<T: Encodable>(_ value: T, with encoder: URLEncoder = URLEncoder()) throws {
-        self.items = try encoder.encode(asQueryItems: value)
-    }
-    
     // apply
     
     public func apply(to request: inout URLRequest) throws {
