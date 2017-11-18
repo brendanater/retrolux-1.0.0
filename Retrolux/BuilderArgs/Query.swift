@@ -58,10 +58,6 @@ public struct Query: RequestArg, RequestBody {
         self.items = items
     }
     
-    public init(_ object: Any, with serializer: URLQuerySerializer = URLQuerySerializer()) throws {
-        self.items = try serializer.queryItems(from: object)
-    }
-    
     public init<T: Encodable>(_ value: T, with encoder: URLEncoder = URLEncoder()) throws {
         self.items = try encoder.encode(asQueryItems: value)
     }
@@ -75,10 +71,10 @@ public struct Query: RequestArg, RequestBody {
     
     public func requestBody() throws -> Body {
         
-        return try Query.data(from: self.items)
+        return try Query.body(for: self.items)
     }
     
-    public static func data(from queryItems: [URLQueryItem], encoding: String.Encoding = .utf8) throws -> Body {
+    public static func body(for queryItems: [URLQueryItem], encoding: String.Encoding = .utf8) throws -> Body {
         
         var components = URL(string: "?")!.components!
         
@@ -91,7 +87,7 @@ public struct Query: RequestArg, RequestBody {
         var httpHeaders = HTTPHeaders()
         
         httpHeaders[.contentLength] = httpBody.count.description
-        httpHeaders.contentType = ContentType.applicationXWWWFormURLEncoded(charset: encoding.charset)
+        httpHeaders[.contentType] = "application/x-www-form-urlencoded" + (encoding.charset.map { "; charset=\($0)" } ?? "")
         
         return Body(.data(httpBody), httpHeaders)
     }
@@ -129,6 +125,8 @@ public struct Query: RequestArg, RequestBody {
             func setToBody(_ encoding: String.Encoding) throws {
                 
                 request.query = nil
+                
+                try Query.body(for: queryItems, encoding: encoding).apply(to: &request)
             }
             
             switch self {

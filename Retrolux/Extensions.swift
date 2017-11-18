@@ -140,43 +140,23 @@ extension InputStream {
     }
 }
 
-extension Data {
+// sequence
+
+
+extension Sequence where Self: RangeReplaceableCollection {
     
-    @discardableResult
-    public mutating func empty() -> Data {
-
-        var bytes: [UInt8] = []
-
-        for _ in 0..<self.count {
-            bytes.append(self.removeFirst())
-        }
+    mutating func popFirst() -> Element? {
         
-        return Data(bytes)
+        return self.first == nil ? nil : self.removeFirst()
     }
 }
-
-// sequence
 
 extension String {
     
     public mutating func popLast() -> Element? {
         
-        if self.last != nil {
-            return self.removeLast()
-        } else {
-            return nil
-        }
+        return self.last == nil ? nil : self.removeLast()
     }
-    
-    public mutating func popfirst() -> Element? {
-        
-        if self.first != nil {
-            return self.removeFirst()
-        } else {
-            return nil
-        }
-    }
-    
 }
 
 // URL
@@ -189,15 +169,6 @@ extension URL {
     
     public var queryItems: [URLQueryItem]? {
         return self.components?.queryItems
-    }
-    
-    public func adding(queryItems: [URLQueryItem]) -> URL? {
-        
-        var components = self.components
-        
-        components?.queryItems = queryItems
-        
-        return components?.url
     }
     
     public var preferredMimeTypeForPathExtension: String? {
@@ -215,15 +186,19 @@ extension URL {
     /// returns an unused file URL for the temporary directory and a random filename
     public static func temporaryFileURL() -> URL {
         
-        var url = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).appendingPathComponent("retrolux_temp_" + UUID().uuidString)
+        func newURL() -> URL {
+            return URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).appendingPathComponent("retrolux_temp_" + UUID().uuidString)
+        }
+        
+        var url = newURL()
         
         var retryCount = 0
         while FileManager.default.fileExists(atPath: url.path) {
+            url = newURL()
             if retryCount < 5 {
-                url = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).appendingPathComponent(UUID().uuidString)
                 retryCount += 1
             } else {
-                fatalError("Failed to find an unused temp file URL")
+                fatalError("Failed to find an unused temporary file URL")
             }
         }
         
@@ -278,10 +253,10 @@ extension NSURLRequest {
 }
 
 extension NSMutableURLRequest {
-    // TODO: uncomment when methods from extensions can be overridden
-//    open func set(httpMethod: HTTPMethod) {
-//        self.httpMethod = httpMethod.rawValue
-//    }
+    
+    open func set(httpMethod: HTTPMethod) {
+        self.httpMethod = httpMethod.rawValue
+    }
 }
 
 extension URLRequest {
@@ -302,39 +277,106 @@ extension URLRequest {
     }
 }
 
-/// An enum for the default REST httpMethods and statusConfirmations ( (Int)->Bool )
-public enum RestfulHTTPMethod {
-    /// defines httpMethod: "GET" and statusConfirmation: 200.
-    case list
-    /// defines httpMethod: "POST" and statusConfirmation: 201.
-    case create
-    /// defines httpMethod: "GET" and statusConfirmation: 200.
-    case retrieve
-    /// defines httpMethod: "PUT" and statusConfirmation: 200
-    case update
-    /// defines httpMethod: "PATCH" and statusConfirmation: 200
-    case partialUpdate
-    /// defines httpMethod: "DELETE" and statusConfirmation: 204.
-    case destroy
+public extension String {
     
-    public var httpMethod: String {
-        switch self {
-        case .list, .retrieve: return "GET"
-        case .create: return "POST"
-        case .update: return "PUT"
-        case .partialUpdate: return "PATCH"
-        case .destroy: return "DELETE"
+    /// adds quotes escaping sub quotes and backslashes
+    public var quoted: String {
+        
+        var result = ""
+        
+        for c in self {
+            switch c {
+            case "\"", "\\":
+                result.append("\\")
+                result.append(c)
+            default:
+                result.append(c)
+            }
         }
+        
+        return "\"\(result)\""
     }
     
-    public var statusConfirmation: (Int)->Bool {
-        switch self {
-        case .list, .retrieve, .update, .partialUpdate: return { $0 == 200 }
-        case .create: return { $0 == 201 }
-        case .destroy: return { $0 == 204 }
+    /// removes quotes unescaping sub quotes and backslashes
+    public var unquoted: String? {
+        
+        guard self.hasPrefix("\"") && self.hasSuffix("\"") else {
+            // unquoted
+            return nil
         }
+        
+        var control = self.reversed().dropLast().dropFirst()
+        
+        var result: String = ""
+        
+        while !control.isEmpty {
+            let c = control.removeLast()
+            
+            switch c {
+                
+            case "\\":
+                guard !control.isEmpty else {
+                    // escaping ending quote
+                    return nil
+                }
+                
+                let c = control.removeLast()
+                
+                switch c {
+                case "\\", "\"": result.append(c)
+                default:
+                    // unescaped backslash
+                    return nil
+                }
+                
+                
+            case "\"":
+                // unescaped quote
+                return nil
+                
+            default: result.append(c)
+                
+            }
+        }
+        
+        return result
     }
+    
 }
+
+/// An enum for the default REST httpMethods and statusConfirmations ( (Int)->Bool )
+//public enum RestfulHTTPMethod {
+//    /// defines httpMethod: "GET"    and statusConfirmation: 200.
+//    case list
+//    /// defines httpMethod: "POST"   and statusConfirmation: 201.
+//    case create
+//    /// defines httpMethod: "GET"    and statusConfirmation: 200.
+//    case retrieve
+//    /// defines httpMethod: "PUT"    and statusConfirmation: 200
+//    case update
+//    /// defines httpMethod: "PATCH"  and statusConfirmation: 200
+//    case partialUpdate
+//    /// defines httpMethod: "DELETE" and statusConfirmation: 204.
+//    case destroy
+//
+//    public var httpMethod: String {
+//        switch self {
+//        case .list, .retrieve: return "GET"
+//        case .create: return "POST"
+//        case .update: return "PUT"
+//        case .partialUpdate: return "PATCH"
+//        case .destroy: return "DELETE"
+//        }
+//    }
+//
+//    public var statusConfirmation: (Int)->Bool {
+//        switch self {
+//        case .list, .retrieve, .update, .partialUpdate: return { $0 == 200 }
+//        case .create: return { $0 == 201 }
+//        case .destroy: return { $0 == 204 }
+//        }
+//    }
+//}
 
 extension NSMutableURLRequest {
     // TODO: uncomment when methods from extensions can be overridden
@@ -347,7 +389,7 @@ extension NSMutableURLRequest {
 extension URLRequest {
     
     /// Sets the httpMethod of the REST method
-    public mutating func set(restful: RestfulHTTPMethod) {
-        self.httpMethod = restful.httpMethod
-    }
+//    public mutating func set(restful: RestfulHTTPMethod) {
+//        self.httpMethod = restful.httpMethod
+//    }
 }

@@ -58,7 +58,7 @@ public typealias Part = Multipart.Part
  --simple boundary--
  This is the epilogue.  It is also to be ignored.
  */
-public struct Multipart: RangeReplaceableCollection {
+public struct Multipart: RequestBody {
     
     /// the headers to add to the Content-Type, Content-Length,
     public var httpHeaders: HTTPHeaders = [:]
@@ -87,7 +87,7 @@ public struct Multipart: RangeReplaceableCollection {
         self.parts = []
     }
     
-    public init<S>(_ elements: S) where S : Sequence, Element == S.Element {
+    public init<S>(_ elements: S) where S : Sequence, S.Element == Part {
         self.parts = elements.map {$0}
     }
     
@@ -99,25 +99,9 @@ public struct Multipart: RangeReplaceableCollection {
         self.parts = parts
     }
     
-    public subscript(position: Int) -> Multipart.Part {
-        get {
-            return self.parts[position]
-        }
-        set {
-            self.parts[position] = newValue
-        }
-    }
-    
-    public var startIndex: Int {
-        return self.parts.startIndex
-    }
-    
-    public var endIndex: Int {
-        return self.parts.endIndex
-    }
-    
-    public func index(after i: Int) -> Int {
-        return self.parts.index(after: i)
+    /// returns self as multipart/form-data
+    public func requestBody() throws -> Body {
+        return try self.joinAsFormData()
     }
     
     public func joinAsFormData() throws -> Body {
@@ -146,7 +130,9 @@ public struct Multipart: RangeReplaceableCollection {
             
             try data.append(part.body.data.stream().data(maxMemorySize: self.maxMemorySize - data.count, willReset: {
                 
-                data.append($0.empty())
+                data.append($0)
+                $0.removeAll()
+                
                 try data.write(to: temporaryURL)
                 
                 contentLength += data.count
@@ -176,7 +162,7 @@ public struct Multipart: RangeReplaceableCollection {
         var headers: HTTPHeaders = self.httpHeaders
         
         headers[.contentLength] = contentLength.description
-        headers.contentType = .multipartFormData(boundary: boundary)
+        headers[.contentType] = "multipart/form-data; boundary=\(boundary)"
         
         if writtenToURL {
             return Body(.atURL(temporaryURL), headers)

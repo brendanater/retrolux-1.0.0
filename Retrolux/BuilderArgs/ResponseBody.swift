@@ -9,5 +9,5 @@
 import Foundation
 
 public protocol ResponseBody {
-    init(from response: ClientResponse) throws
+    init(from response: Response<AnyData>) throws
 }

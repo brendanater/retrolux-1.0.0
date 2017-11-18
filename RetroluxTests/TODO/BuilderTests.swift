@@ -56,26 +56,27 @@ class BuilderTests: XCTestCase {
 //            response.originalRequest.url?.absoluteString == builder.base.absoluteString + expected,
 //            "response URL incorrect: \(response.originalRequest.url?.absoluteString ?? "nil") vs \(builder.base.absoluteString + expected)"
 //        )
+        XCTFail()
     }
     
     func testInterception() {
-        
+        XCTFail()
     }
     
     func testEncodeWithEncoders() {
-        
+        XCTFail()
     }
     
     func testDecodeWithDecoders() {
-        
+        XCTFail()
     }
     
     func testMakeFactoryRequest() {
-        
+        XCTFail()
     }
     
     func testMakeNormalRequest() {
-        
+        XCTFail()
     }
     
     
@@ -83,3 +84,4 @@ class BuilderTests: XCTestCase {
     
     
 }
+

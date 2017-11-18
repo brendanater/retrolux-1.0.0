@@ -8,3 +8,20 @@
 
 import Foundation
 import XCTest
+
+
+class ExtensionsTests: XCTestCase {
+    
+    func testSemaphoreRetrieve() {
+        XCTFail()
+    }
+    
+    func testInputStream() {
+        XCTFail()
+    }
+    
+    func testWriteAndReadURLFromInputStream() {
+        XCTFail()
+    }
+    
+}

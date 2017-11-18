@@ -78,7 +78,7 @@ public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg 
     }
     
     /// whether to replace or add fields to a URLRequest
-    public var replacesAllFields: Bool = true
+    public var replacesAllFields: Bool = false
     
     public init() {
         self.fields = [:]
@@ -107,24 +107,20 @@ public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg 
     }
     
     public struct Field: ExpressibleByStringLiteral, Hashable {
-        
-        public var name: String
-        
         public init(_ name: String) {
             self.name = name
         }
-        
         public init(stringLiteral value: String) {
             self.name = value
         }
-        
         public var hashValue: Int {
             return self.name.hashValue
         }
-        
         public static func ==(lhs: HTTPHeaders.Field, rhs: HTTPHeaders.Field) -> Bool {
             return lhs.name == rhs.name
         }
+        
+        public var name: String
         
         /// "Content-Disposition" rfc: https://tools.ietf.org/html/rfc6266#section-4.1
         public static let contentDisposition: Field = "Content-Disposition"
@@ -154,10 +150,5 @@ public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg 
     public func makeIterator() -> Dictionary<Field, String>.Iterator {
         return self.fields.makeIterator()
     }
-}
-
-public protocol HTTPHeaderProtocol: CustomStringConvertible {
-    
-    static var field: HTTPHeaders.Field {get}
 }
 

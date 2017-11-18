@@ -17,27 +17,13 @@ public protocol FactoryEncoder {
     func encode<T>(_ value: T) throws -> Body
 }
 
-public enum FactoryEncoderUnsupportedError: Error {
+fileprivate enum FactoryEncoderUnsupportedError: Error {
     case factoryDoesntSupport(Any, FactoryEncoder)
 }
 
 extension FactoryEncoder {
-    public func unsupported<T>(_ value: T) -> FactoryEncoderUnsupportedError {
+    public func unsupported<T>(_ value: T) -> Error {
         return FactoryEncoderUnsupportedError.factoryDoesntSupport(value, self)
-    }
-}
-
-extension FactoryEncoder where Self: TopLevelEncoder {
-    
-    public func encode<T>(_ value: T) throws -> Body {
-        
-        guard value is Encodable else {
-            throw self.unsupported(value)
-        }
-        
-        let data = try (value as! Encodable).encode(with: self as TopLevelEncoder)
-        
-        return Body(.data(data), [.contentType: self.contentType, .contentLength: data.count.description])
     }
 }
 
@@ -45,53 +31,23 @@ extension FactoryEncoder where Self: TopLevelEncoder {
 
 public protocol FactoryDecoder {
     
-    func decode<T>(_ response: ClientResponse) throws -> T
+    func decode<T>(_ response: Response<AnyData>) throws -> T
 }
 
-public enum FactoryDecoderUnsupportedError: Error {
+fileprivate enum FactoryDecoderUnsupportedError: Error {
     case factoryDoesntSupport(Any.Type, FactoryDecoder)
 }
 
 extension FactoryDecoder {
-    public func unsupported(_ type: Any.Type) -> FactoryDecoderUnsupportedError {
+    public func unsupported(_ type: Any.Type) -> Error {
         return FactoryDecoderUnsupportedError.factoryDoesntSupport(type, self)
-    }
-}
-
-extension FactoryDecoder where Self: TopLevelDecoder {
-    
-    public func decode<T>(_ response: ClientResponse) throws -> T {
-        
-        guard let metaType = T.self as? Decodable.Type, !(T.self == Decodable.self || T.self == Codable.self) else {
-            throw self.unsupported(T.self)
-        }
-        
-        return try metaType.init(from: response.getData(), using: self as TopLevelDecoder) as! T
     }
 }
 
 // extensions
 
-extension JSONEncoder: FactoryEncoder {}
-extension JSONDecoder: FactoryDecoder {}
-
-extension URLEncoder: FactoryEncoder {}
-extension URLDecoder: FactoryDecoder {}
-
-extension URLQuerySerializer: FactoryConverter {
-    
-    public func encode<T>(_ value: T) throws -> Body {
-        
-        let data = try self.queryData(from: value)
-        
-        return Body(.data(data), [.contentType: self.contentType, .contentLength: data.count.description])
-    }
-    
-    public func decode<T>(_ response: ClientResponse) throws -> T {
-        
-        return try self.object(from: response.getData()) as? T ?? { throw self.unsupported(T.self) }()
-    }
-}
+//extension JSONEncoder: FactoryEncoder {}
+//extension JSONDecoder: FactoryDecoder {}
 
 extension JSONSerialization: FactoryConverter {
     
@@ -102,10 +58,56 @@ extension JSONSerialization: FactoryConverter {
         return Body(.data(data), [.contentType: JSONSerialization.contentType, .contentLength: data.count.description])
     }
     
-    public func decode<T>(_ response: ClientResponse) throws -> T {
-        return try JSONSerialization.jsonObject(with: response.getData(), options: .allowFragments) as? T ?? { throw self.unsupported(T.self) }()
+    public func decode<T>(_ response: Response<AnyData>) throws -> T {
+        return try JSONSerialization.jsonObject(with: response.interpret().asData(), options: .allowFragments) as? T ?? { throw self.unsupported(T.self) }()
     }
 }
+
+//// simplifiedCoder
+//
+//extension FactoryEncoder where Self: TopLevelEncoder {
+//
+//    public func encode<T>(_ value: T) throws -> Body {
+//
+//        guard value is Encodable else {
+//            throw self.unsupported(value)
+//        }
+//
+//        let data = try (value as! Encodable).encode(with: self as TopLevelEncoder)
+//
+//        return Body(.data(data), [.contentType: self.contentType, .contentLength: data.count.description])
+//    }
+//}
+//
+//extension FactoryDecoder where Self: TopLevelDecoder {
+//
+//    public func decode<T>(_ response: ClientResponse) throws -> T {
+//
+//        guard let metaType = T.self as? Decodable.Type, !(T.self == Decodable.self || T.self == Codable.self) else {
+//            throw self.unsupported(T.self)
+//        }
+//
+//        return try metaType.init(from: response.getData(), using: self as TopLevelDecoder) as! T
+//    }
+//}
+//
+//extension URLEncoder: FactoryEncoder {}
+//extension URLDecoder: FactoryDecoder {}
+//
+//extension URLQuerySerializer: FactoryConverter {
+//
+//    public func encode<T>(_ value: T) throws -> Body {
+//
+//        let data = try self.queryData(from: value)
+//
+//        return Body(.data(data), [.contentType: self.contentType, .contentLength: data.count.description])
+//    }
+//
+//    public func decode<T>(_ response: ClientResponse) throws -> T {
+//
+//        return try self.object(from: response.getData()) as? T ?? { throw self.unsupported(T.self) }()
+//    }
+//}
 
 
 

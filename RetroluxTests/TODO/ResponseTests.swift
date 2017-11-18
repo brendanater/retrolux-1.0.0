@@ -8,3 +8,10 @@
 
 import Foundation
 import XCTest
+
+class ResponseTests: XCTestCase {
+    
+    func testMaxStreamMemory() {
+        
+    }
+}

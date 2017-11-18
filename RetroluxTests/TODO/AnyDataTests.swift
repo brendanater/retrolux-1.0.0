@@ -8,3 +8,11 @@
 
 import Foundation
 import XCTest
+
+
+class AnyDataTests: XCTestCase {
+    
+    func testWithInvalidURL() {
+        XCTFail()
+    }
+}
