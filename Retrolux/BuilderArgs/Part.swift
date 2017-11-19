@@ -99,6 +99,39 @@ public struct Multipart: RequestBody {
         self.parts = parts
     }
     
+    // MARK: Part
+    
+    public struct Part: MultipartBody {
+        
+        public var name: String
+        public var body: Body
+        public var filename: String?
+        
+        public init(name: String, _ body: Body, filename: String? = nil) {
+            
+            self.body = body
+            self.name = name
+            self.filename = filename
+        }
+        
+        /// returns self to conform to MultipartComponent
+        public func multipart() throws -> Part {
+            return self
+        }
+        
+        /// sets the content disposition header with self.body.httpHeaders
+        public func formDataHeaders() -> HTTPHeaders {
+            
+            var httpHeaders = self.body.httpHeaders
+            
+            httpHeaders[.contentDisposition] = "form-data; name=\(self.name.quoted)" + (self.filename.map { "; filename=\($0.quoted)" } ?? "")
+            
+            return httpHeaders
+        }
+    }
+    
+    // MARK: apply
+    
     /// returns self as multipart/form-data
     public func requestBody() throws -> Body {
         return try self.joinAsFormData()
@@ -227,35 +260,6 @@ public struct Multipart: RequestBody {
     
     public static func randomBoundary() -> String {
         return String(format: "alamofire.retrolux.boundary.%08x%08x", arc4random(), arc4random())
-    }
-    
-    public struct Part: MultipartBody {
-        
-        public var name: String
-        public var body: Body
-        public var filename: String?
-        
-        public init(name: String, _ body: Body, filename: String? = nil) {
-            
-            self.body = body
-            self.name = name
-            self.filename = filename
-        }
-        
-        /// returns self to conform to MultipartComponent
-        public func multipart() throws -> Part {
-            return self
-        }
-        
-        /// sets the content disposition header with self.body.httpHeaders
-        public func formDataHeaders() -> HTTPHeaders {
-            
-            var httpHeaders = self.body.httpHeaders
-            
-            httpHeaders[.contentDisposition] = "form-data; name=\(self.name.quoted)" + (self.filename.map { "; filename=\($0.quoted)" } ?? "")
-            
-            return httpHeaders
-        }
     }
 }
 

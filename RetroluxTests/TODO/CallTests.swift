@@ -1,5 +1,5 @@
 //
-//  RequestTests.swift
+//  CallTests.swift
 //  RetroluxTests
 //
 //  Created by Brendan Henderson on 11/16/17.
@@ -11,21 +11,13 @@ import XCTest
 import Retrolux
 
 
-class RequestTests: XCTestCase {
+class CallTests: XCTestCase {
     
     func testResponseValidators() {
         XCTFail()
     }
     
     func testStatusValidation() {
-        XCTFail()
-    }
-    
-    func testRequestInterception() {
-        XCTFail()
-    }
-    
-    func testResponseInterception() {
         XCTFail()
     }
     

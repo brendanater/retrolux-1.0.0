@@ -11,12 +11,14 @@ import Foundation
 
 public struct Call<Args, Return> {
     
-    public typealias Factory<Args, Return> = ((urlRequest: URLRequest, args: Args, callback: (Response<Return>)->Void))throws->Task
+    public typealias Factory<Args, Return> = ((urlRequest: URLRequest, args: Args, callback: (Response<Return>) -> Void))throws->Task
     
     public var storedRequest: URLRequest
     public let factory: Factory<Args, Return>
     
     public var statusValidation: ((Int) -> Bool)?
+    
+    public var subResponseInterceptor: ((inout Response<Return>) throws -> ())?
     
     public var testResponse: Response<Return>?
     
@@ -25,31 +27,45 @@ public struct Call<Args, Return> {
         self.factory = factory
     }
     
-    public mutating func validateStatus(in range: Range<Int>) {
+    public mutating func validateStatus(in range: Range<Int>) -> Call {
         
         self.statusValidation = { range.contains($0) }
+        return self
     }
     
-    public mutating func validateStatus(in codes: [Int]) {
+    public mutating func validateStatus(in codes: [Int]) -> Call {
         
         self.statusValidation = { codes.contains($0) }
+        return self
     }
     
-    public mutating func validateStatus(is code: Int) {
+    public mutating func validateStatus(is code: Int) -> Call {
         
         self.statusValidation = { $0 == code }
+        return self
+    }
+    
+    public mutating func validateStatusOK() -> Call {
+        
+        return self.validateStatus(in: 200..<300)
     }
     
     public func enqueue(_ args: Args, _ callback: @escaping (Response<Return>)->Void) throws -> Task {
         
-        let completionHandler: (Response<Return>)->Void = { [statusValidation = self.statusValidation] in
+        let completionHandler: (Response<Return>)->Void = {
             
             // validate
             var response = $0
             
+            do {
+                try self.subResponseInterceptor?(&response)
+            } catch {
+                callback(response.convert { _ in throw error })
+            }
+            
             if response.isValid,
                 let status = response.statusCode,
-                let statusValidation = statusValidation {
+                let statusValidation = self.statusValidation {
                 
                 response.isValid = statusValidation(status)
             }
@@ -58,7 +74,7 @@ public struct Call<Args, Return> {
             callback(response)
         }
         
-        let task = try Call.testTask(forTestResponse: self.testResponse, completionHandler)
+        let task = try TestTask(self.testResponse, completionHandler)
             ?? self.factory((self.storedRequest, args, completionHandler))
         
         if !task.isSuspended {
@@ -72,11 +88,6 @@ public struct Call<Args, Return> {
     public func perform(_ args: Args) throws -> Response<Return>? {
         
         return try DispatchSemaphore.retrieve() { semaphore in try self.enqueue(args, { semaphore.response = $0 }).resume() }
-    }
-    
-    public static func testTask(forTestResponse testResponse: Response<Return>?, _ completionHandler: @escaping (Response<Return>) -> Void) -> Task? {
-        
-        return TestTask(testResponse, completionHandler)
     }
 }
 
@@ -94,18 +105,13 @@ extension Call where Args == Void {
     }
 }
 
-
-
-
-
-
-fileprivate class TestTask<Return>: Task {
+public class TestTask<Return>: Task {
     
-    var completionHandler: (Response<Return>) -> Void
-    var testResponse: Response<Return>
-    var state: URLSessionTask.State = .suspended
+    public var completionHandler: (Response<Return>) -> Void
+    public var testResponse: Response<Return>
+    public private(set) var state: URLSessionTask.State = .suspended
     
-    init?(_ testResponse: Response<Return>?, _ completionHandler: @escaping (Response<Return>) -> Void) {
+    public init?(_ testResponse: Response<Return>?, _ completionHandler: @escaping (Response<Return>) -> Void) {
         
         guard let testResponse = testResponse else {
             return nil
@@ -115,16 +121,16 @@ fileprivate class TestTask<Return>: Task {
         self.testResponse = testResponse
     }
     
-    func cancel() {
+    public func cancel() {
         self.state = .suspended
     }
     
-    func resume() {
+    public func resume() {
         self.state = .completed
         self.completionHandler(self.testResponse)
     }
     
-    func suspend() {
+    public func suspend() {
         self.state = .suspended
     }
 }

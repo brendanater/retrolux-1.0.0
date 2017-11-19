@@ -49,7 +49,7 @@ public enum AnyData: Equatable {
         }
     }
     
-    public var urlValue: URL? {
+    public var url: URL? {
         if case .atURL(let url) = self {
             return url
         } else {
@@ -57,7 +57,7 @@ public enum AnyData: Equatable {
         }
     }
     
-    public var dataValue: Data? {
+    public var data: Data? {
         if case .data(let data) = self {
             return data
         } else {

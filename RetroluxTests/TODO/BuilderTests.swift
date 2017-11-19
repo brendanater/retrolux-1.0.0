@@ -71,11 +71,11 @@ class BuilderTests: XCTestCase {
         XCTFail()
     }
     
-    func testMakeFactoryRequest() {
+    func testMakeCall() {
         XCTFail()
     }
     
-    func testMakeNormalRequest() {
+    func testMakeCallWithOtherArgs() {
         XCTFail()
     }
     

@@ -10,37 +10,53 @@ import Foundation
 
 public protocol FactoryConverter: FactoryEncoder, FactoryDecoder {}
 
+public enum FactoryUnsupportedError: Error {
+    case factoryDecoderDoesntSupport(Any.Type, FactoryDecoder)
+    case factoryEncoderDoesntSupport(Any, FactoryEncoder)
+}
+
 // encoder
 
 public protocol FactoryEncoder {
     
+    func supports<T>(_ value: T) -> Bool
+    
     func encode<T>(_ value: T) throws -> Body
 }
 
-fileprivate enum FactoryEncoderUnsupportedError: Error {
-    case factoryDoesntSupport(Any, FactoryEncoder)
-}
-
-extension FactoryEncoder {
-    public func unsupported<T>(_ value: T) -> Error {
-        return FactoryEncoderUnsupportedError.factoryDoesntSupport(value, self)
-    }
-}
-
-// decoder
-
 public protocol FactoryDecoder {
+    
+    /// if this decoder supports decoding to this type.  Return nil if it is unknown
+    func supports<T>(_ value: T.Type) -> Bool?
     
     func decode<T>(_ response: Response<AnyData>) throws -> T
 }
 
-fileprivate enum FactoryDecoderUnsupportedError: Error {
-    case factoryDoesntSupport(Any.Type, FactoryDecoder)
+extension FactoryEncoder {
+    
+    public func support<T>(_ value: T) throws {
+        guard self.supports(value) else {
+            throw self.unsupported(value)
+        }
+    }
+    
+    public func unsupported(_ value: Any) -> Error {
+        return FactoryUnsupportedError.factoryEncoderDoesntSupport(value, self)
+    }
 }
 
 extension FactoryDecoder {
-    public func unsupported(_ type: Any.Type) -> Error {
-        return FactoryDecoderUnsupportedError.factoryDoesntSupport(type, self)
+    
+    public func support<T>(_ value: T.Type) throws {
+        if let support = self.supports(T.self) {
+            guard support else {
+                throw self.unsupported(value)
+            }
+        }
+    }
+    
+    public func unsupported(_ value: Any.Type) -> Error {
+        return FactoryUnsupportedError.factoryDecoderDoesntSupport(value, self)
     }
 }
 
@@ -60,11 +76,12 @@ extension Decodable {
 
 extension JSONEncoder: FactoryEncoder {
     
+    public func supports<T>(_ value: T) -> Bool {
+        return value is Encodable
+    }
+    
     public func encode<T>(_ value: T) throws -> Body {
-        
-        guard value is Encodable else {
-            throw self.unsupported(value)
-        }
+        try self.support(value)
 
         let data = try (value as! Encodable).encode(with: self)
 
@@ -73,19 +90,30 @@ extension JSONEncoder: FactoryEncoder {
 }
 
 extension JSONDecoder: FactoryDecoder {
+    
+    public func supports<T>(_ value: T.Type) -> Bool? {
+        return T.self is Decodable.Type && !(T.self == Decodable.self || T.self == Codable.self)
+    }
+    
     public func decode<T>(_ response: Response<AnyData>) throws -> T {
+        try self.support(T.self)
         
-        guard let metaType = T.self as? Decodable.Type, !(metaType == Decodable.self || metaType == Codable.self) else {
-            throw self.unsupported(T.self)
-        }
-        
-        return try metaType.init(from: response.interpret().asData(), using: self) as! T
+        return try (T.self as! Decodable.Type).init(from: response.interpret().asData(), using: self) as! T
     }
 }
 
 extension JSONSerialization: FactoryConverter {
     
+    public func supports<T>(_ value: T.Type) -> Bool? {
+        return nil
+    }
+    
+    public func supports<T>(_ value: T) -> Bool {
+        return JSONSerialization.isValidJSONObject(value)
+    }
+    
     public func encode<T>(_ value: T) throws -> Body {
+        try self.support(value)
         
         let data = try JSONSerialization.data(withJSONObject: value)
         
@@ -93,7 +121,8 @@ extension JSONSerialization: FactoryConverter {
     }
     
     public func decode<T>(_ response: Response<AnyData>) throws -> T {
-        return try JSONSerialization.jsonObject(with: response.interpret().asData(), options: .allowFragments) as? T ?? { throw self.unsupported(T.self) }()
+        
+        return try JSONSerialization.jsonObject(with: response.interpret().asData(), options: .allowFragments) as! T
     }
 }
 

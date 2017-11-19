@@ -8,8 +8,23 @@
 
 import Foundation
 
-public protocol RequestBody {
+public protocol RequestBody: RequestArg {
     func requestBody() throws -> Body
+}
+
+extension RequestBody {
+    public func apply(to request: inout URLRequest) throws {
+        
+        let body = try self.requestBody()
+        
+        guard case let .data(data) = body.data else {
+            // cannot use request.httpBodyStream, because there are no callbacks in URLSession and there would be confusion when overriding httpBody.
+            throw Body.BodyError.cannotSetBodyDataAtURLToURLRequestUseUploadTaskType
+        }
+        
+        request.httpBody = data
+        request.httpHeaders = body.httpHeaders
+    }
 }
 
 public struct Body: RequestArg, RequestBody {
@@ -29,18 +44,6 @@ public struct Body: RequestArg, RequestBody {
     }
     
     public enum BodyError: Error {
-        case cannotSetAnyDataToURLRequest
-    }
-    
-    // tries to set self to request if self.data = .data(_)
-    public func apply(to request: inout URLRequest) throws {
-        
-        guard case let .data(data) = self.data else {
-            // cannot use request.httpBodyStream, because there are no callbacks in URLSession and there would be confusion when overriding httpBody.
-            throw BodyError.cannotSetAnyDataToURLRequest
-        }
-        
-        request.httpBody = data
-        request.httpHeaders = self.httpHeaders
+        case cannotSetBodyDataAtURLToURLRequestUseUploadTaskType
     }
 }

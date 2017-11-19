@@ -39,7 +39,7 @@ public struct Response<T> {
         return self.body.map { .body($0) } ?? .error(self.error)
     }
     
-    private enum NoError: Error {
+    public enum NoError: Error {
         case noBodyOrErrorInInterpretedResponse
     }
     
