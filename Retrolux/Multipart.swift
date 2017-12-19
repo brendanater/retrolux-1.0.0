@@ -30,14 +30,6 @@
 
 import Foundation
 
-
-public protocol MultipartBody {
-    
-    func multipart() throws -> Part
-}
-
-public typealias Part = Multipart.Part
-
 /**
  Content-Type: multipart/#{subType}; boundary=simple boundary
  Content-Length: 123768
@@ -58,10 +50,10 @@ public typealias Part = Multipart.Part
  --simple boundary--
  This is the epilogue.  It is also to be ignored.
  */
-public struct Multipart: RequestBody {
+public struct Multipart {
     
     /// the headers to add to the Content-Type, Content-Length,
-    public var httpHeaders: HTTPHeaders = [:]
+    public var defaultHTTPHeaders: HTTPHeaders = [:]
     
     public var boundary: String = Multipart.randomBoundary()
     
@@ -71,16 +63,16 @@ public struct Multipart: RequestBody {
     public var parts: [Part]
     
     /// the max size to load to memory before moving data to a temporary file, default = just under 40MB
-    public var maxMemorySize: Int = 40_000_000
+    public var maxMemorySize: Int64 = 40_000_000
     
-    public func estimatedContentLength() throws -> Int {
+    public func estimatedContentLength() throws -> Int64 {
         
-        let boundaryCount = try self.getAndValidateBoundary().data(using: .utf8)?.count ?? 0
+        let boundaryCount = try Int64(self.getAndValidateBoundary().data(using: .utf8)?.count ?? 0)
         
-        let count1 = self.preamble?.count ?? 0
-        let count2 = self.epilogue?.count ?? 0
+        let count1 = Int64(self.preamble?.count ?? 0)
+        let count2 = Int64(self.epilogue?.count ?? 0)
         
-        return try self.parts.reduce(count1 + count2, { try $0 + $1.body.data.contentLength() + boundaryCount + Multipart.headerData(for: $1.body.httpHeaders).count })
+        return try self.parts.reduce(count1 + count2, { try $0 + $1.body.data.contentLength() + boundaryCount + Int64(Multipart.headerData(for: $1.body.httpHeaders).count) })
     }
     
     public init() {
@@ -101,7 +93,7 @@ public struct Multipart: RequestBody {
     
     // MARK: Part
     
-    public struct Part: MultipartBody {
+    public struct Part {
         
         public var name: String
         public var body: Body
@@ -109,14 +101,9 @@ public struct Multipart: RequestBody {
         
         public init(name: String, _ body: Body, filename: String? = nil) {
             
-            self.body = body
             self.name = name
+            self.body = body
             self.filename = filename
-        }
-        
-        /// returns self to conform to MultipartComponent
-        public func multipart() throws -> Part {
-            return self
         }
         
         /// sets the content disposition header with self.body.httpHeaders
@@ -132,12 +119,7 @@ public struct Multipart: RequestBody {
     
     // MARK: apply
     
-    /// returns self as multipart/form-data
-    public func requestBody() throws -> Body {
-        return try self.joinAsFormData()
-    }
-    
-    public func joinAsFormData() throws -> Body {
+    public func formData() throws -> Body {
         
         var data = Data()
         let temporaryURL = URL.temporaryFileURL()
@@ -161,20 +143,33 @@ public struct Multipart: RequestBody {
             
             try data.append(Multipart.headerData(for: part.formDataHeaders()))
             
-            try data.append(part.body.data.stream().data(maxMemorySize: self.maxMemorySize - data.count, willReset: {
+            switch part.body.data {
                 
-                data.append($0)
-                $0.removeAll()
+            case .data(let d):
+                data.append(d)
                 
-                try data.write(to: temporaryURL)
+            case .url(let url, temporary: let isTemporary):
+                guard let stream = InputStream(url: url) else {
+                    throw MultipartError.failedToGetStream(forPart: part)
+                }
                 
-                contentLength += data.count
-                data.removeAll()
+                try data.append(stream.data(maxMemorySize: self.maxMemorySize - Int64(data.count), willReset: {
+                    
+                    data.append($0)
+                    $0.removeAll()
+                    
+                    try data.write(to: temporaryURL)
+                    
+                    contentLength += data.count
+                    data.removeAll()
+                    
+                    writtenToURL = true
+                    
+                    return self.maxMemorySize
+                }))
                 
-                writtenToURL = true
-                
-                return self.maxMemorySize
-            }))
+                try? url.removeFile(ifTemporary: isTemporary)
+            }
             
             data.append(crlfData)
         }
@@ -192,13 +187,13 @@ public struct Multipart: RequestBody {
             data.removeAll()
         }
         
-        var headers: HTTPHeaders = self.httpHeaders
+        var headers: HTTPHeaders = self.defaultHTTPHeaders
         
         headers[.contentLength] = contentLength.description
         headers[.contentType] = "multipart/form-data; boundary=\(boundary)"
         
         if writtenToURL {
-            return Body(.atURL(temporaryURL), headers)
+            return Body(.url(temporaryURL, temporary: true), headers)
         } else {
             return Body(.data(data), headers)
         }

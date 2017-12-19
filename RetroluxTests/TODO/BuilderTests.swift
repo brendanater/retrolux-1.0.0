@@ -10,6 +10,26 @@ import Foundation
 import XCTest
 import Retrolux
 
+
+
+func t<T: Encoder>(_: T.Type) -> Bool {
+    return true
+}
+
+var tv = t(Test.self)
+
+
+
+
+
+
+
+
+
+
+
+
+
 class BuilderTests: XCTestCase {
     
     func testMethods() {

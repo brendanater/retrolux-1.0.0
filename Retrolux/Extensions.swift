@@ -23,43 +23,53 @@ extension String.Index {
     }
 }
 
+// URLQueryItem
+
+extension URLQueryItem {
+
+    public init(_ name: String, _ value: String?) {
+        self.init(name: name, value: value)
+    }
+}
+
 // DispatchSemaphore
 
 extension DispatchSemaphore {
     
-    public class SemaphoreRetrieve<T> {
+    open class SemaphoreRetrieve<T> {
         
-        private let semaphore: DispatchSemaphore
+        fileprivate let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
         
-        public var response: T? {
+        public init() {}
+        
+        open var response: T? {
             didSet {
                 self.semaphore.signal()
             }
         }
         
-        public init(_ semaphore: DispatchSemaphore) {
-            self.semaphore = semaphore
+        open func wait(timeout: DispatchTime) -> T? {
+            _ = self.semaphore.wait(timeout: timeout)
+            return self.response
+        }
+        
+        open func wait() -> T {
+            self.semaphore.wait()
+            return self.response!
         }
     }
     
-    public static func retrieve<T>(_ value: T.Type = T.self, timeout: DispatchTime? = nil, execute: (SemaphoreRetrieve<T>)throws->()) rethrows -> T? {
-        
-        let semaphore = DispatchSemaphore(value: 0)
-        
-        let semaphoreRetrieve = SemaphoreRetrieve<T>(semaphore)
-        
-        try execute(semaphoreRetrieve)
-        
-        if let timeout = timeout {
-            
-            _ = semaphore.wait(timeout: timeout)
-        } else {
-            semaphore.wait()
-        }
-        
-        return semaphoreRetrieve.response
+    public static func retrieve<T>(_ value: T.Type = T.self, timeout: DispatchTime, execute: (SemaphoreRetrieve<T>)throws->()) rethrows -> T? {
+        let s = SemaphoreRetrieve<T>()
+        try execute(s)
+        return s.wait(timeout: timeout)
     }
     
+    public static func retrieve<T>(_ value: T.Type = T.self, execute: (SemaphoreRetrieve<T>)throws->()) rethrows -> T {
+        let s = SemaphoreRetrieve<T>()
+        try execute(s)
+        return s.wait()
+    }
 }
 
 // InputStream
@@ -72,7 +82,7 @@ extension InputStream {
     }
     
     /// streams to Data with maxMemorySize or 20MB. willReset takes the current data before it is emptied and returns an optional new maxMemorySize (nil == throw overMaxMemorySize).
-    public func data(maxMemorySize: Int = 20_000_000, willReset resetHandler: ((inout Data)throws->Int?)? = nil) throws -> Data {
+    public func data(maxMemorySize: Int64 = 20_000_000, willReset resetHandler: ((inout Data)throws->Int64?)? = nil) throws -> Data {
         
         var maxMemorySize = maxMemorySize
         var data = Data()
@@ -115,28 +125,6 @@ extension InputStream {
         }
         
         return data
-    }
-    
-    public func asAnyData(overflowSize: Int = 20_000_000, overflowFile: URL = URL.temporaryFileURL()) throws -> AnyData {
-        
-        var data: Data = Data()
-        var writtenToURL: Bool = false
-        
-        data = try self.data(maxMemorySize: overflowSize, willReset: {
-            
-            try $0.write(to: overflowFile)
-            
-            writtenToURL = true
-            
-            return nil
-        })
-        
-        if writtenToURL {
-            try data.write(to: overflowFile)
-            return .atURL(overflowFile)
-        } else {
-            return .data(data)
-        }
     }
 }
 
@@ -227,53 +215,10 @@ extension URLRequest {
             self.urlComponents?.query = newValue
         }
     }
-}
-
-extension NSURLRequest {
     
-    public enum HTTPMethod: String {
-        case options = "OPTIONS"
-        case get     = "GET"
-        case head    = "HEAD"
-        case post    = "POST"
-        case put     = "PUT"
-        case patch   = "PATCH"
-        case delete  = "DELETE"
-        case trace   = "TRACE"
-        case connect = "CONNECT"
-        
-        public init?(_ httpMethod: String?) {
-            self.init(rawValue: httpMethod?.uppercased() ?? "GET")
-        }
-    }
-    
-    open var httpMethod_enum: HTTPMethod? {
-        return HTTPMethod(self.httpMethod)
-    }
-}
-
-extension NSMutableURLRequest {
-    
-    open func set(httpMethod: HTTPMethod) {
-        self.httpMethod = httpMethod.rawValue
-    }
-}
-
-extension URLRequest {
-    
-    public typealias HTTPMethod = NSURLRequest.HTTPMethod
-    
-    public var httpMethod_enum: HTTPMethod? {
-        get {
-            return HTTPMethod(self.httpMethod)
-        }
-        set {
-            self.httpMethod = newValue?.rawValue
-        }
-    }
-    
-    public mutating func set(httpMethod: HTTPMethod) {
-        self.httpMethod_enum = httpMethod
+    /// returns whether httpBody != nil || httpBodyStream != nil
+    public var isHTTPBodySet: Bool {
+        return self.httpBody != nil || self.httpBodyStream != nil
     }
 }
 

@@ -26,7 +26,7 @@ public protocol FactoryEncoder {
 
 public protocol FactoryDecoder {
     
-    /// if this decoder supports decoding to this type.  Return nil if it is unknown
+    /// supports, unsupported, or try decode as? T
     func supports<T>(_ value: T.Type) -> Bool?
     
     func decode<T>(_ response: Response<AnyData>) throws -> T
@@ -63,13 +63,13 @@ extension FactoryDecoder {
 // extensions
 
 extension Encodable {
-    public func encode(with encoder: JSONEncoder) throws -> Data {
+    fileprivate func __encode(with encoder: JSONEncoder) throws -> Data {
         return try encoder.encode(self)
     }
 }
 
 extension Decodable {
-    public init(from data: Data, using decoder: JSONDecoder) throws {
+    fileprivate init(__from data: Data, using decoder: JSONDecoder) throws {
         self = try decoder.decode(Self.self, from: data)
     }
 }
@@ -83,7 +83,7 @@ extension JSONEncoder: FactoryEncoder {
     public func encode<T>(_ value: T) throws -> Body {
         try self.support(value)
 
-        let data = try (value as! Encodable).encode(with: self)
+        let data = try (value as! Encodable).__encode(with: self)
 
         return Body(.data(data), [.contentType: "application/json", .contentLength: data.count.description])
     }
@@ -98,13 +98,14 @@ extension JSONDecoder: FactoryDecoder {
     public func decode<T>(_ response: Response<AnyData>) throws -> T {
         try self.support(T.self)
         
-        return try (T.self as! Decodable.Type).init(from: response.interpret().asData(), using: self) as! T
+        return try (T.self as! Decodable.Type).init(__from: response.data(), using: self) as! T
     }
 }
 
 extension JSONSerialization: FactoryConverter {
     
     public func supports<T>(_ value: T.Type) -> Bool? {
+        // cannot know supporting from type
         return nil
     }
     
@@ -122,7 +123,7 @@ extension JSONSerialization: FactoryConverter {
     
     public func decode<T>(_ response: Response<AnyData>) throws -> T {
         
-        return try JSONSerialization.jsonObject(with: response.interpret().asData(), options: .allowFragments) as! T
+        return try JSONSerialization.jsonObject(with: response.data(), options: .allowFragments) as? T ?? { throw self.unsupported(T.self) }()
     }
 }
 

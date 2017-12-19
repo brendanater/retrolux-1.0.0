@@ -98,6 +98,13 @@ extension Response where T: Equatable {
     }
 }
 
+extension Response where T == AnyData {
+    
+    public func data(maxMemorySize: Int64 = 20_000_000) throws -> Data {
+        return try self.interpret().stream().data(maxMemorySize: maxMemorySize, willReset: nil)
+    }
+}
+
 //// MARK: ClientResponse
 //
 //public struct ClientResponse: Equatable {

@@ -13,9 +13,9 @@ import Retrolux
 
 fileprivate let testBuilderPath = "https://www.google.com/"
 
-func makeTestBuilder(base: URL = URL(string: testBuilderPath)!) -> Builder {
-    return Builder(base: base)
-}
+//func makeTestBuilder(base: URL = URL(string: testBuilderPath)!) -> Builder {
+//    return
+//}
 
 extension String {
     var utf8: Data {

@@ -8,25 +8,6 @@
 
 import Foundation
 
-public typealias Headers = HTTPHeaders
-
-public struct Header: RequestArg {
-    
-    public typealias Field = HTTPHeaders.Field
-    
-    public var field: Field
-    public var value: String
-    
-    public init(_ field: Field, _ value: String) {
-        self.field = field
-        self.value = value
-    }
-    
-    public func apply(to request: inout URLRequest) throws {
-        request.httpHeaders[self.field] = value
-    }
-}
-
 extension URLRequest {
     
     public var httpHeaders: HTTPHeaders {
@@ -35,24 +16,22 @@ extension URLRequest {
         }
         set {
             if newValue.isEmpty {
-                
                 self.allHTTPHeaderFields = nil
-                
-            } else if newValue.replacesAllFields {
-                    
-                self.allHTTPHeaderFields = newValue.allFields
-                
             } else {
-                
-                var headers = self.allHTTPHeaderFields ?? [:]
-                
-                for (key, value) in newValue.allFields {
-                    headers[key] = value
-                }
-                
-                self.allHTTPHeaderFields = headers
+                self.allHTTPHeaderFields = newValue.allFields
             }
         }
+    }
+    
+    public mutating func add(httpHeaders: HTTPHeaders) {
+            
+        var headers = self.allHTTPHeaderFields ?? [:]
+        
+        for (key, value) in httpHeaders.allFields {
+            headers[key] = value
+        }
+        
+        self.allHTTPHeaderFields = headers
     }
 }
 
@@ -63,25 +42,22 @@ extension HTTPURLResponse {
     }
 }
 
-public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg {
+public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral {
     
-    public var fields: [Field: String]
+    public var allFields: [String: String]
     
-    /// headers reduced to/from self.fields
-    public var allFields: [String: String] {
+    /// headers reduced to/from self.allFields
+    public var fields: [Field: String] {
         get {
-            return self.fields.reduce(into: [:], { $0[$1.key.name] = $1.value })
+            return self.allFields.reduce(into: [:], { $0[Field($1.key)] = $1.value })
         }
         set {
-            self.fields = newValue.reduce(into: [:], { $0[Field($1.key)] = $1.value })
+            self.allFields = newValue.reduce(into: [:], { $0[$1.key.name] = $1.value })
         }
     }
     
-    /// whether to replace or add fields to a URLRequest
-    public var replacesAllFields: Bool = false
-    
     public init() {
-        self.fields = [:]
+        self.allFields = [:]
     }
     
     public init(_ allHTTPHeaderFields: [String: String]?) {
@@ -99,11 +75,7 @@ public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg 
     }
     
     public init(_ fields: [(name: Field, value: String)]) {
-        self.fields = fields.reduce(into: [:], { $0[$1.0] = $1.1 })
-    }
-    
-    public init(_ field: Field, _ value: String) {
-        self.fields = [field: value]
+        self.allFields = fields.reduce(into: [:], { $0[$1.0.name] = $1.1 })
     }
     
     public struct Field: ExpressibleByStringLiteral, Hashable {
@@ -132,19 +104,15 @@ public struct HTTPHeaders: Sequence, ExpressibleByDictionaryLiteral, RequestArg 
     
     public subscript(field: Field) -> String? {
         get {
-            return self.fields[field]
+            return self.allFields[field.name]
         }
         set {
-            self.fields[field] = newValue
+            self.allFields[field.name] = newValue
         }
     }
     
     public var isEmpty: Bool {
-        return self.fields.isEmpty
-    }
-    
-    public func apply(to request: inout URLRequest) throws {
-        request.httpHeaders = self
+        return self.allFields.isEmpty
     }
     
     public func makeIterator() -> Dictionary<Field, String>.Iterator {
