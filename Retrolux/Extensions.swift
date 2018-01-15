@@ -74,17 +74,31 @@ extension DispatchSemaphore {
 
 // InputStream
 
+extension Errors {
+    public struct InputStream_ {
+        private init() {}
+        
+        open class FailedToInitStreamForURL: RetypedError<URL> {}
+        
+        open class FailedToStreamData: RetypedError<FTSDErrorCase> {}
+        public enum FTSDErrorCase {
+            case overflowedMemoryThreshold
+            case streamError
+        }
+    }
+}
+
 extension InputStream {
     
-    public enum InputStreamGetDataError: Error {
-        case inputStreamOverMaxMemorySize
-        case inputStreamFailedWithError(Error)
+    public static func stream(for url: URL) throws -> InputStream {
+        
+        return try InputStream(url: url) ?? { throw Errors.InputStream_.FailedToInitStreamForURL("Failed to init InputStream for url: \(url)", url) }()
     }
     
-    /// streams to Data with maxMemorySize or 20MB. willReset takes the current data before it is emptied and returns an optional new maxMemorySize (nil == throw overMaxMemorySize).
-    public func data(maxMemorySize: Int64 = 20_000_000, willReset resetHandler: ((inout Data)throws->Int64?)? = nil) throws -> Data {
+    /// streams to Data with memoryThreshold (defaulting to Retrolux.defaultMemoryThreshold).  When data.count > memoryThreshold, data is passed to willReset and then emptied.  If there is no handler, willReset defaults to throwing.
+    public func streamData(memoryThreshold: Int64 = Retrolux.defaultMemoryThreshold(), willReset resetHandler: (inout Data) throws -> Int64? = { _ in throw Errors.InputStream_.FailedToStreamData("InputStream data input overflowed memoryThreshold", .overflowedMemoryThreshold) }) throws -> Data {
         
-        var maxMemorySize = maxMemorySize
+        var memoryThreshold = memoryThreshold
         var data = Data()
         
         self.open()
@@ -97,7 +111,7 @@ extension InputStream {
             let bytesRead = self.read(&buffer, maxLength: 1024)
             
             if let error = self.streamError {
-                throw InputStreamGetDataError.inputStreamFailedWithError(error)
+                throw Errors.InputStream_.FailedToStreamData("\(type(of: self)) failed to get data with error", .streamError, underlyingError: error)
             }
             
             if bytesRead > 0 {
@@ -106,21 +120,14 @@ extension InputStream {
                 break
             }
             
-            if data.count > maxMemorySize {
+            if data.count > memoryThreshold {
                 
-                if let resetHandler = resetHandler {
+                if let newMemoryThreshold = try resetHandler(&data) {
                     
-                    if let newMaxMemorySize = try resetHandler(&data) {
-                        
-                        maxMemorySize = newMaxMemorySize
-                    }
-                    
-                    data.removeAll()
-                    
-                    continue
-                } else {
-                    throw InputStreamGetDataError.inputStreamOverMaxMemorySize
+                    memoryThreshold = newMemoryThreshold
                 }
+                
+                data.removeAll()
             }
         }
         
@@ -222,7 +229,35 @@ extension URLRequest {
     }
 }
 
+// String
+
 public extension String {
+    
+    func ranges(of stringToFind: String) -> [Range<String.Index>] {
+        assert(!stringToFind.isEmpty, "Cannot find ranges of empty string")
+        var searchRange: Range<String.Index>?
+        var ranges: [Range<String.Index>] = []
+        while let foundRange = self.range(of: stringToFind, options: .diacriticInsensitive, range: searchRange) {
+            searchRange = Range(uncheckedBounds: (lower: foundRange.upperBound, upper: self.endIndex))
+            ranges.append(foundRange)
+        }
+        return ranges
+    }
+    
+    func countInstances(of stringToFind: String) -> Int {
+        assert(!stringToFind.isEmpty)
+        var searchRange: Range<String.Index>?
+        var count = 0
+        while let foundRange = self.range(of: stringToFind, options: .diacriticInsensitive, range: searchRange) {
+            searchRange = Range(uncheckedBounds: (lower: foundRange.upperBound, upper: self.endIndex))
+            count += 1
+        }
+        return count
+    }
+    
+    public mutating func format(_ args: [CVarArg]) {
+        self = self.appendingFormat("", args)
+    }
     
     /// adds quotes escaping sub quotes and backslashes
     public var quoted: String {
@@ -233,16 +268,16 @@ public extension String {
             switch c {
             case "\"", "\\":
                 result.append("\\")
-                result.append(c)
             default:
-                result.append(c)
+                break
             }
+            result.append(c)
         }
         
         return "\"\(result)\""
     }
     
-    /// removes quotes unescaping sub quotes and backslashes
+    /// removes quotes unescaping sub quotes and backslashes.  Ignores controls. (e.g. '\n', '\r')
     public var unquoted: String? {
         
         guard self.hasPrefix("\"") && self.hasSuffix("\"") else {
@@ -324,7 +359,6 @@ extension String.Encoding {
         }
     }
     
-    
     public init?(charset: String) {
         
         switch charset.uppercased() {
@@ -333,7 +367,7 @@ extension String.Encoding {
         case "ISO-8859-1"   : self = .isoLatin1
         case "ISO-8859-2"   : self = .isoLatin2
         case "EUC-JP"       : self = .japaneseEUC
-        case "SHIFT_JIS"    : self = .shiftJIS // "Shift_JIS"
+        case "SHIFT_JIS"    : self = .shiftJIS
         case "UTF-8"        : self = .utf8
         case "UTF-16"       : self = .utf16
         case "UTF-16BE"     : self = .utf16BigEndian

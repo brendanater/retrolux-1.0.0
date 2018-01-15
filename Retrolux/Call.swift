@@ -20,13 +20,13 @@ public struct Call<Return>: CallAdaptable {
     // autoResume to allow overriding the task.resume() default behaviour
     public var autoResume: Bool
     // pass back urlRequest to allow inline calls and avoid storing the request twice
-    private let action: ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task
+    private let enqueue: ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task
     
-    public init(_ urlRequest: URLRequest, autoResume: Bool = true, _ action: @escaping ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task) {
+    public init(_ urlRequest: URLRequest, autoResume: Bool = true, _ enqueue: @escaping ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task) {
         
         self.urlRequest = urlRequest
         self.autoResume = autoResume
-        self.action = action
+        self.enqueue = enqueue
     }
     
     /// self = call to conform to CallAdaptable
@@ -35,16 +35,21 @@ public struct Call<Return>: CallAdaptable {
     }
     
     @discardableResult
-    public func enqueue(delegate: SingleTaskDelegate? = nil, _ callback: @escaping (Response<Return>) -> ()) -> Task {
+    public func enqueue(_ callback: @escaping (Response<Return>) -> ()) -> Task {
+        return self.enqueue(delegate: nil, callback)
+    }
+    
+    @discardableResult
+    public func enqueue(delegate: SingleTaskDelegate?, _ callback: @escaping (Response<Return>) -> ()) -> Task {
         
-        let task = self.action((self.urlRequest, delegate, callback))
+        let task = self.enqueue((self.urlRequest, delegate, callback))
         
-        if self.autoResume {
+        if self.autoResume && task.isSuspended {
             task.resume()
-            
         } else if !task.isSuspended {
             task.suspend()
         }
+        
         return task
     }
     

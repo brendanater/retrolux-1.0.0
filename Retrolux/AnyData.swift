@@ -8,40 +8,81 @@
 
 import Foundation
 
-/*
- the problems for data:
- 1. request input stream has no callback
- 2. temporary file will need to be removed later and could potentially remove it too soon or not at all.
- 3. always writing to a file first is too slow.
- 4. only data may be too large for memory
- */
 
 public enum AnyData {
     
     case url(URL, temporary: Bool)
     case data(Data)
+}
+
+extension AnyData: Equatable {
     
-    public enum AnyDataError: Error {
-
-        public enum InvalidURLReason {
-            case cannotGetInputStream
-            case cannotGetContentLength
+    public static func ==(lhs: AnyData, rhs: AnyData) -> Bool {
+        switch (lhs, rhs) {
+        // if urls the same, different temporary values are ignored
+        case (.url(let lhs, _), .url(let rhs, _)):
+            return lhs == rhs
+        case (.data(let lhs), .data(let rhs)):
+            return lhs == rhs
+        default:
+            return false
         }
-
-        case invalidURL(URL, reason: InvalidURLReason)
     }
+}
 
+extension AnyData {
+    
     public func contentLength() throws -> Int64 {
         switch self {
-        case .url(let url, temporary: _): return try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64 ?? { throw AnyDataError.invalidURL(url, reason: .cannotGetContentLength) }()
+        case .url(let url, temporary: _): return try url.fileContentLength()
         case .data(let data): return Int64(data.count)
         }
     }
-
-    public func stream() throws -> InputStream {
+    
+    public func removeIfTemporaryURL() throws {
+        if case .url(let url, temporary: let isTemporary) = self, isTemporary {
+            try url.removeFile(ifTemporary: isTemporary)
+        }
+    }
+    
+    /// Inits InputStream with self.  Remember to remove file if temporary.
+    private func stream() throws -> InputStream {
         switch self {
-        case .url(let url, temporary: _): return try InputStream(url: url) ?? { throw AnyDataError.invalidURL(url, reason: .cannotGetInputStream) }()
+        case .url(let url, temporary: _): return try InputStream.stream(for: url)
         case .data(let data): return InputStream(data: data)
+        }
+    }
+    
+    public var urlValue: (url: URL, isTemporary: Bool)? {
+        if case .url(let url, temporary: let isTemporary) = self {
+            return (url, isTemporary)
+        } else {
+            return nil
+        }
+    }
+    
+    public var dataValue: Data? {
+        if case .data(let data) = self {
+            return data
+        } else {
+            return nil
+        }
+    }
+    
+    public func loadData(memoryThreshold: Int64 = Retrolux.defaultMemoryThreshold()) throws -> Data {
+        
+        switch self {
+            
+        case .data(let data):
+            return data
+            
+        case .url(_, _):
+            
+            let data = try self.stream().streamData(memoryThreshold: memoryThreshold)
+            
+            try? self.removeIfTemporaryURL()
+            
+            return data
         }
     }
     
@@ -54,28 +95,26 @@ public enum AnyData {
     }
 }
 
-extension AnyData: Equatable {
-    
-    public static func ==(lhs: AnyData, rhs: AnyData) -> Bool {
-        switch (lhs, rhs) {
-        // having the same url, but different temporaries is wierd, so isTemporary is ignored
-        case (.url(let lhs, _), .url(let rhs, _)):
-            return lhs == rhs
-        case (.data(let lhs), .data(let rhs)):
-            return lhs == rhs
-        default:
-            return false
-        }
+extension Errors {
+    public struct URL_ {
+        private init() {}
+        
+        open class FailedToGetFileContentLength: RetypedError<URL> {}
     }
 }
 
 extension URL {
     
-    /// tries to remove the file at the url if the file is temporary
+    /// tries to remove the file at the url if temporary
     public func removeFile(ifTemporary: Bool) throws {
         if ifTemporary {
             try FileManager.default.removeItem(at: self)
         }
+    }
+    
+    /// tries to get the contentLength for the local file at url
+    public func fileContentLength() throws -> Int64 {
+        return try FileManager.default.attributesOfItem(atPath: self.path)[.size] as? Int64 ?? { throw Errors.URL_.FailedToGetFileContentLength("Failed to get file content length for url: \(self)", self) }()
     }
 }
 

@@ -30,9 +30,24 @@
 
 import Foundation
 
+public typealias Part = Multipart.Part
+
+extension Errors {
+    
+    public struct Multipart_ {
+        private init() {}
+        
+        open class FailedToInitInputStreamForPart: RetypedError<(url: URL, part: Part)> {}
+        open class FailedToGetHeaderData: RetypedError<HTTPHeaders> {}
+        open class InvalidBoundary: RetypedError<(boundary: String, multipart: Multipart)> {}
+    }
+    
+}
+
 /**
+ /** default headers **/
  Content-Type: multipart/#{subType}; boundary=simple boundary
- Content-Length: 123768
+ Content-Length: 1234
  
  This is the preamble.  It is to be ignored, though it
  is a handy place for mail composers to include an
@@ -50,9 +65,9 @@ import Foundation
  --simple boundary--
  This is the epilogue.  It is also to be ignored.
  */
-public struct Multipart {
+public struct Multipart: Sequence, ExpressibleByArrayLiteral {
     
-    /// the headers to add to the Content-Type, Content-Length,
+    /// the httpHeaders to add to add to the body's .httpHeaders
     public var defaultHTTPHeaders: HTTPHeaders = [:]
     
     public var boundary: String = Multipart.randomBoundary()
@@ -62,8 +77,8 @@ public struct Multipart {
     
     public var parts: [Part]
     
-    /// the max size to load to memory before moving data to a temporary file, default = just under 40MB
-    public var maxMemorySize: Int64 = 40_000_000
+    /// the max size to load to memory before moving data to a temporary file
+    public var memoryThreshold: Int64 = Retrolux.defaultMemoryThreshold()
     
     public func estimatedContentLength() throws -> Int64 {
         
@@ -91,30 +106,18 @@ public struct Multipart {
         self.parts = parts
     }
     
-    // MARK: Part
+    public init(arrayLiteral elements: Part...) {
+        self.init(elements)
+    }
     
-    public struct Part {
-        
-        public var name: String
-        public var body: Body
-        public var filename: String?
-        
-        public init(name: String, _ body: Body, filename: String? = nil) {
-            
-            self.name = name
-            self.body = body
-            self.filename = filename
-        }
-        
-        /// sets the content disposition header with self.body.httpHeaders
-        public func formDataHeaders() -> HTTPHeaders {
-            
-            var httpHeaders = self.body.httpHeaders
-            
-            httpHeaders[.contentDisposition] = "form-data; name=\(self.name.quoted)" + (self.filename.map { "; filename=\($0.quoted)" } ?? "")
-            
-            return httpHeaders
-        }
+    // MARK: Sequence
+    
+    public func makeIterator() -> Array<Part>.Iterator {
+        return self.parts.makeIterator()
+    }
+    
+    public var isEmpty: Bool {
+        return self.parts.isEmpty
     }
     
     // MARK: apply
@@ -150,10 +153,10 @@ public struct Multipart {
                 
             case .url(let url, temporary: let isTemporary):
                 guard let stream = InputStream(url: url) else {
-                    throw MultipartError.failedToGetStream(forPart: part)
+                    throw Errors.Multipart_.FailedToInitInputStreamForPart("Failed to init inputstream for url in part", (url, part))
                 }
                 
-                try data.append(stream.data(maxMemorySize: self.maxMemorySize - Int64(data.count), willReset: {
+                try data.append(stream.streamData(memoryThreshold: self.memoryThreshold - Int64(data.count), willReset: {
                     
                     data.append($0)
                     $0.removeAll()
@@ -165,7 +168,7 @@ public struct Multipart {
                     
                     writtenToURL = true
                     
-                    return self.maxMemorySize
+                    return self.memoryThreshold
                 }))
                 
                 try? url.removeFile(ifTemporary: isTemporary)
@@ -189,21 +192,14 @@ public struct Multipart {
         
         var headers: HTTPHeaders = self.defaultHTTPHeaders
         
-        headers[.contentLength] = contentLength.description
         headers[.contentType] = "multipart/form-data; boundary=\(boundary)"
+        headers[.contentLength] = contentLength.description
         
         if writtenToURL {
             return Body(.url(temporaryURL, temporary: true), headers)
         } else {
             return Body(.data(data), headers)
         }
-    }
-    
-    public enum MultipartError: Error {
-        
-        case failedToGetHeaderData(from: HTTPHeaders)
-        case invalidBoundary(String)
-        case failedToGetStream(forPart: Part)
     }
     
     /**
@@ -223,7 +219,7 @@ public struct Multipart {
             + Multipart.crlf
             ).data(using: .utf8, allowLossyConversion: false)
         else {
-            throw MultipartError.failedToGetHeaderData(from: httpHeaders)
+            throw Errors.Multipart_.FailedToGetHeaderData("Failed to get header data for http headers.", httpHeaders)
         }
         
         return data
@@ -235,7 +231,11 @@ public struct Multipart {
          || self.boundary.contains(where: { !Multipart.boundaryAllowedCharacters.contains($0) })
          || self.boundary.count > 70 {
             
-            throw MultipartError.invalidBoundary(self.boundary)
+            throw Errors.Multipart_.InvalidBoundary(
+                "Invalid multipart boundary: \(self.boundary.debugDescription)",
+                (self.boundary, self),
+                recovery: "Set a new boundary. Boundary cannot be empty, have more than 70 characters, or contain characters other than: \(Multipart.boundaryAllowedCharacters)."
+            )
         } else {
             return self.boundary
         }
@@ -250,11 +250,37 @@ public struct Multipart {
             + ["'", "(", ")", "+", "_", ",", "-", ".", "/", ":", "=", "?"]
     }
     
-    /// basically a newLine, but in a way that other parsers can interpret
+    /// basically "\n" on Mac, but in a way that other parsers can interpret
     public static let crlf = "\r\n"
     
     public static func randomBoundary() -> String {
         return String(format: "alamofire.retrolux.boundary.%08x%08x", arc4random(), arc4random())
+    }
+    
+    // MARK: Part
+    
+    public struct Part {
+        
+        public var name: String
+        public var body: Body
+        public var filename: String?
+        
+        public init(name: String, _ body: Body, filename: String? = nil) {
+            
+            self.name = name
+            self.body = body
+            self.filename = filename
+        }
+        
+        /// sets the content disposition header with self.body.httpHeaders
+        public func formDataHeaders() -> HTTPHeaders {
+            
+            var httpHeaders = self.body.httpHeaders
+            
+            httpHeaders[.contentDisposition] = "form-data; name=\(self.name)" + (self.filename.map { "; filename=\($0)" } ?? "")
+            
+            return httpHeaders
+        }
     }
 }
 

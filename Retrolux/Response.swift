@@ -8,25 +8,42 @@
 
 import Foundation
 
+extension Errors {
+    public struct Response_ {
+        private init() {}
+        
+        public struct NoBodyOrError: Error, CustomStringConvertible {
+            public var description: String {
+                return "No body or error in interpreted response"
+            }
+        }
+    }
+}
+
 public struct Response<T> {
-    
-    public let originalRequest: URLRequest
     
     public var body: T?
     public let urlResponse: URLResponse?
     public var error: Error?
+    public let originalRequest: URLRequest
+    public let metrics: URLSessionTaskMetrics?
+    public let resumeData: Data?
     public var isValid: Bool
     
-    public init(_ originalRequest: URLRequest, _ body: T?, _  urlResponse: URLResponse?, _ error: Error?) {
-        
-        self.originalRequest = originalRequest
+    public init(body: T?, urlResponse: URLResponse? = nil, error: Error?, originalRequest: URLRequest, metrics: URLSessionTaskMetrics? = nil, resumeData: Data? = nil, isValid: Bool) {
         
         self.body = body
-        self.error = error
         self.urlResponse = urlResponse
+        self.error = error
+        self.originalRequest = originalRequest
+        self.metrics = metrics
+        self.resumeData = resumeData
+        self.isValid = isValid
         
-        self.isValid = body != nil
     }
+}
+
+extension Response {
     
     // MARK: Interpret
     
@@ -39,16 +56,9 @@ public struct Response<T> {
         return self.body.map { .body($0) } ?? .error(self.error)
     }
     
-    public enum NoError: Error {
-        case noBodyOrErrorInInterpretedResponse
-    }
-    
     public func interpret() throws -> T {
         
-        switch self.interpreted() {
-        case .body(let body): return body
-        case .error(let error): throw error ?? NoError.noBodyOrErrorInInterpretedResponse
-        }
+        return try self.body ?? { throw self.error ?? Errors.Response_.NoBodyOrError() }()
     }
     
     // map
@@ -64,8 +74,19 @@ public struct Response<T> {
             error = _error
         }
         
-        return Response<U>(self.originalRequest, body, self.urlResponse, self.error ?? error)
+        return Response<U>(
+            body: body,
+            urlResponse: self.urlResponse,
+            // previous errors take precedence
+            error: self.error ?? error,
+            originalRequest: self.originalRequest,
+            metrics: self.metrics,
+            resumeData: self.resumeData,
+            isValid: self.isValid ? error == nil : false
+        )
     }
+    
+    // data
     
     // convenience
     
@@ -100,8 +121,8 @@ extension Response where T: Equatable {
 
 extension Response where T == AnyData {
     
-    public func data(maxMemorySize: Int64 = 20_000_000) throws -> Data {
-        return try self.interpret().stream().data(maxMemorySize: maxMemorySize, willReset: nil)
+    public func data(memoryThreshold: Int64 = Retrolux.defaultMemoryThreshold()) throws -> Data {
+        return try self.interpret().loadData(memoryThreshold: memoryThreshold)
     }
 }
 

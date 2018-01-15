@@ -8,14 +8,21 @@
 
 import Foundation
 
-public protocol FactoryConverter: FactoryEncoder, FactoryDecoder {}
-
-public enum FactoryUnsupportedError: Error {
-    case factoryDecoderDoesntSupport(Any.Type, FactoryDecoder)
-    case factoryEncoderDoesntSupport(Any, FactoryEncoder)
+extension Errors {
+    public struct FactoryEncoder_ {
+        private init() {}
+        
+        open class UnsupportedValue: RetypedError<(value: Any, encoder: FactoryEncoder)> {}
+    }
+    
+    public struct FactoryDecoder_ {
+        private init() {}
+        
+        open class UnsupportedValue: RetypedError<(value: Any.Type, decoder: FactoryDecoder)> {}
+    }
 }
 
-// encoder
+public protocol FactoryConverter: FactoryEncoder, FactoryDecoder {}
 
 public protocol FactoryEncoder {
     
@@ -26,8 +33,7 @@ public protocol FactoryEncoder {
 
 public protocol FactoryDecoder {
     
-    /// supports, unsupported, or try decode as? T
-    func supports<T>(_ value: T.Type) -> Bool?
+    func supports<T>(_ value: T.Type) -> Bool
     
     func decode<T>(_ response: Response<AnyData>) throws -> T
 }
@@ -40,36 +46,34 @@ extension FactoryEncoder {
         }
     }
     
-    public func unsupported(_ value: Any) -> Error {
-        return FactoryUnsupportedError.factoryEncoderDoesntSupport(value, self)
+    public func unsupported<T>(_ value: T) -> Error {
+        return Errors.FactoryEncoder_.UnsupportedValue("\(type(of: self)) does not support \(type(of: value))", (value, self))
     }
 }
 
 extension FactoryDecoder {
     
     public func support<T>(_ value: T.Type) throws {
-        if let support = self.supports(T.self) {
-            guard support else {
-                throw self.unsupported(value)
-            }
+        guard self.supports(value) else {
+            throw self.unsupported(value)
         }
     }
     
-    public func unsupported(_ value: Any.Type) -> Error {
-        return FactoryUnsupportedError.factoryDecoderDoesntSupport(value, self)
+    public func unsupported<T>(_ value: T.Type) -> Error {
+        return Errors.FactoryDecoder_.UnsupportedValue("\(type(of: self)) does not support \(value)", (value, self))
     }
 }
 
 // extensions
 
 extension Encodable {
-    fileprivate func __encode(with encoder: JSONEncoder) throws -> Data {
+    fileprivate func __encode(daskgdh encoder: JSONEncoder) throws -> Data {
         return try encoder.encode(self)
     }
 }
 
 extension Decodable {
-    fileprivate init(__from data: Data, using decoder: JSONDecoder) throws {
+    fileprivate init(__from data: Data, daskgdh decoder: JSONDecoder) throws {
         self = try decoder.decode(Self.self, from: data)
     }
 }
@@ -83,30 +87,29 @@ extension JSONEncoder: FactoryEncoder {
     public func encode<T>(_ value: T) throws -> Body {
         try self.support(value)
 
-        let data = try (value as! Encodable).__encode(with: self)
+        let data = try (value as! Encodable).__encode(daskgdh: self)
 
-        return Body(.data(data), [.contentType: "application/json", .contentLength: data.count.description])
+        return Body(data, [.contentType: "application/json", .contentLength: data.count.description])
     }
 }
 
 extension JSONDecoder: FactoryDecoder {
     
-    public func supports<T>(_ value: T.Type) -> Bool? {
-        return T.self is Decodable.Type && !(T.self == Decodable.self || T.self == Codable.self)
+    public func supports<T>(_ value: T.Type) -> Bool {
+        return value is Decodable.Type && !(value == Decodable.self || value == Codable.self)
     }
     
     public func decode<T>(_ response: Response<AnyData>) throws -> T {
         try self.support(T.self)
         
-        return try (T.self as! Decodable.Type).init(__from: response.data(), using: self) as! T
+        return try (T.self as! Decodable.Type).init(__from: response.data(), daskgdh: self) as! T
     }
 }
 
 extension JSONSerialization: FactoryConverter {
     
-    public func supports<T>(_ value: T.Type) -> Bool? {
-        // cannot know supporting from type
-        return nil
+    public func supports<T>(_ value: T.Type) -> Bool {
+        return true
     }
     
     public func supports<T>(_ value: T) -> Bool {
@@ -118,7 +121,7 @@ extension JSONSerialization: FactoryConverter {
         
         let data = try JSONSerialization.data(withJSONObject: value)
         
-        return Body(.data(data), [.contentType: "application/json", .contentLength: data.count.description])
+        return Body(data, [.contentType: "application/json", .contentLength: data.count.description])
     }
     
     public func decode<T>(_ response: Response<AnyData>) throws -> T {

@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		08B7FB431FDACE5D86256C73 /* Pods_RetroluxTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B14A37BF4B77E012AFEEDAAA /* Pods_RetroluxTests.framework */; };
-		49165DC01F4B392E00C65394 /* Builder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49165DBF1F4B392E00C65394 /* Builder.swift */; };
+		49165DC01F4B392E00C65394 /* RequestBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49165DBF1F4B392E00C65394 /* RequestBuilder.swift */; };
 		4920F0051F3A8AB600874AFE /* Retrolux.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4920EFFB1F3A8AB600874AFE /* Retrolux.framework */; };
 		4920F00C1F3A8AB600874AFE /* Retrolux.h in Headers */ = {isa = PBXBuildFile; fileRef = 4920EFFE1F3A8AB600874AFE /* Retrolux.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		499474CA1F4B447B005F1131 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499474C91F4B447B005F1131 /* Request.swift */; };
@@ -25,8 +25,9 @@
 		8B2351761FC13D94008E6FFF /* Multipart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDD171A1FBA0C7F0022E938 /* Multipart.swift */; };
 		8B2351771FC13D94008E6FFF /* Path.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDD171E1FBA2B390022E938 /* Path.swift */; };
 		8B2351781FC13D94008E6FFF /* HTTPHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB96DC11FABD7F100B8C614 /* HTTPHeaders.swift */; };
-		8B2351791FC13D94008E6FFF /* HTTPHeaderProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDA673B1FBF92ED0055F3B0 /* HTTPHeaderProtocol.swift */; };
 		8B2351941FC20EB3008E6FFF /* Alamofire.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B2351861FC20E5E008E6FFF /* Alamofire.framework */; };
+		8B347E692000672C00D51F0C /* RetroluxError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B347E682000672C00D51F0C /* RetroluxError.swift */; };
+		8B347E732000674A00D51F0C /* GlobalMethods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B347E722000674A00D51F0C /* GlobalMethods.swift */; };
 		8B4FD08A1FC33E8800C7A8C8 /* URLSessionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4FD0891FC33E8800C7A8C8 /* URLSessionClient.swift */; };
 		8B5419291F9FEB3500B531A2 /* SimplifiedCoder.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B54192A1F9FEB3500B531A2 /* SimplifiedCoder.framework */; };
 		8B5874AB1FC3D92000DCD0C1 /* retrofitCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5874AA1FC3D92000DCD0C1 /* retrofitCall.swift */; };
@@ -35,10 +36,12 @@
 		8B80934B1FE707F2008C8EBB /* ResponseBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B80934A1FE707F2008C8EBB /* ResponseBody.swift */; };
 		8B80934D1FE70866008C8EBB /* RequestBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B80934C1FE70866008C8EBB /* RequestBody.swift */; };
 		8B80934F1FE70B38008C8EBB /* Body.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B80934E1FE70B38008C8EBB /* Body.swift */; };
-		8B8093511FE73BBF008C8EBB /* asd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8093501FE73BBF008C8EBB /* asd.swift */; };
 		8B94AF891FDF72C200E22D89 /* TaskDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B94AF881FDF72C200E22D89 /* TaskDelegate.swift */; };
 		8B9F00581FBE292F002C7357 /* ContentDisposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9F00571FBE292F002C7357 /* ContentDisposition.swift */; };
-		8BA6A9551FC9DD3B008184D8 /* RequestCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA6A9541FC9DD3B008184D8 /* RequestCreation.swift */; };
+		8B9F9A5D1FEF769000D5FF8A /* ReferenceDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9F9A5C1FEF769000D5FF8A /* ReferenceDictionary.swift */; };
+		8B9F9A671FEF771000D5FF8A /* QueryDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9F9A661FEF771000D5FF8A /* QueryDestination.swift */; };
+		8B9F9A691FEF80E200D5FF8A /* AlamofireClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9F9A681FEF80E200D5FF8A /* AlamofireClient.swift */; };
+		8BA502A12009CA8E00154F2E /* Copyable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA502A02009CA8E00154F2E /* Copyable.swift */; };
 		8BB96DC41FB0BC2A00B8C614 /* MultipartFormData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB96DC31FB0BC2A00B8C614 /* MultipartFormData.swift */; };
 		8BB96DC71FB0C38D00B8C614 /* ContentType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB96DC61FB0C38D00B8C614 /* ContentType.swift */; };
 		8BDA67351FBF748E0055F3B0 /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4968F0461F54EB1900DC43C0 /* Common.swift */; };
@@ -109,7 +112,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		49165DBF1F4B392E00C65394 /* Builder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Builder.swift; sourceTree = "<group>"; };
+		49165DBF1F4B392E00C65394 /* RequestBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBuilder.swift; sourceTree = "<group>"; };
 		4920EFFB1F3A8AB600874AFE /* Retrolux.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Retrolux.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4920EFFE1F3A8AB600874AFE /* Retrolux.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Retrolux.h; sourceTree = "<group>"; };
 		4920EFFF1F3A8AB600874AFE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -126,6 +129,8 @@
 		84DD154854E5AC8B0BEFCCAA /* Pods-RetroluxTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RetroluxTests.release.xcconfig"; path = "Pods/Target Support Files/Pods-RetroluxTests/Pods-RetroluxTests.release.xcconfig"; sourceTree = "<group>"; };
 		8A90BAB75A940B31AE709114 /* Pods-Retrolux.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Retrolux.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Retrolux/Pods-Retrolux.debug.xcconfig"; sourceTree = "<group>"; };
 		8B23517A1FC20E5D008E6FFF /* Alamofire.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Alamofire.xcodeproj; path = "../../Downloads/Alamofire-master/Alamofire.xcodeproj"; sourceTree = "<group>"; };
+		8B347E682000672C00D51F0C /* RetroluxError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroluxError.swift; sourceTree = "<group>"; };
+		8B347E722000674A00D51F0C /* GlobalMethods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalMethods.swift; sourceTree = "<group>"; };
 		8B40C22B1FAA83CC00837D0A /* RequestArg.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestArg.swift; sourceTree = "<group>"; };
 		8B4FD0891FC33E8800C7A8C8 /* URLSessionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionClient.swift; sourceTree = "<group>"; };
 		8B54192A1F9FEB3500B531A2 /* SimplifiedCoder.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SimplifiedCoder.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -137,7 +142,6 @@
 		8B80934A1FE707F2008C8EBB /* ResponseBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBody.swift; sourceTree = "<group>"; };
 		8B80934C1FE70866008C8EBB /* RequestBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBody.swift; sourceTree = "<group>"; };
 		8B80934E1FE70B38008C8EBB /* Body.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Body.swift; sourceTree = "<group>"; };
-		8B8093501FE73BBF008C8EBB /* asd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = asd.swift; sourceTree = "<group>"; };
 		8B94AF881FDF72C200E22D89 /* TaskDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDelegate.swift; sourceTree = "<group>"; };
 		8B998EC51F6B4EB5008C4941 /* BuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuilderTests.swift; sourceTree = "<group>"; };
 		8B9F00571FBE292F002C7357 /* ContentDisposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentDisposition.swift; sourceTree = "<group>"; };
@@ -149,14 +153,16 @@
 		8B9F006E1FBE6228002C7357 /* PartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartTests.swift; sourceTree = "<group>"; };
 		8B9F00701FBE63CF002C7357 /* ContentTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentTypeTests.swift; sourceTree = "<group>"; };
 		8B9F00721FBF3FD0002C7357 /* FactoryRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactoryRequestTests.swift; sourceTree = "<group>"; };
-		8BA6A9541FC9DD3B008184D8 /* RequestCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestCreation.swift; sourceTree = "<group>"; };
+		8B9F9A5C1FEF769000D5FF8A /* ReferenceDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceDictionary.swift; sourceTree = "<group>"; };
+		8B9F9A661FEF771000D5FF8A /* QueryDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryDestination.swift; sourceTree = "<group>"; };
+		8B9F9A681FEF80E200D5FF8A /* AlamofireClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlamofireClient.swift; sourceTree = "<group>"; };
+		8BA502A02009CA8E00154F2E /* Copyable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Copyable.swift; sourceTree = "<group>"; };
 		8BAED7E01FA12EFE00D2F1EE /* Client.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Client.swift; sourceTree = "<group>"; };
 		8BAED7E21FA1354800D2F1EE /* Response.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Response.swift; sourceTree = "<group>"; };
 		8BAED7E41FA15F5400D2F1EE /* Task.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Task.swift; sourceTree = "<group>"; };
 		8BB96DC11FABD7F100B8C614 /* HTTPHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPHeaders.swift; sourceTree = "<group>"; };
 		8BB96DC31FB0BC2A00B8C614 /* MultipartFormData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipartFormData.swift; sourceTree = "<group>"; };
 		8BB96DC61FB0C38D00B8C614 /* ContentType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentType.swift; sourceTree = "<group>"; };
-		8BDA673B1FBF92ED0055F3B0 /* HTTPHeaderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPHeaderProtocol.swift; sourceTree = "<group>"; };
 		8BDA673D1FBFBBB20055F3B0 /* Call.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Call.swift; sourceTree = "<group>"; };
 		8BDA673F1FBFE3090055F3B0 /* RemoveExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoveExtensions.swift; sourceTree = "<group>"; };
 		8BDA67411FBFE7B60055F3B0 /* OldBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldBuilder.swift; sourceTree = "<group>"; };
@@ -218,14 +224,17 @@
 			children = (
 				4920EFFE1F3A8AB600874AFE /* Retrolux.h */,
 				4920EFFF1F3A8AB600874AFE /* Info.plist */,
-				49165DBF1F4B392E00C65394 /* Builder.swift */,
-				8BA6A9541FC9DD3B008184D8 /* RequestCreation.swift */,
+				49165DBF1F4B392E00C65394 /* RequestBuilder.swift */,
+				8B9F9A681FEF80E200D5FF8A /* AlamofireClient.swift */,
 				8B80934C1FE70866008C8EBB /* RequestBody.swift */,
 				8B80934A1FE707F2008C8EBB /* ResponseBody.swift */,
 				8B54192B1FA1294700B531A2 /* FactoryConverter.swift */,
 				8BDA673D1FBFBBB20055F3B0 /* Call.swift */,
 				8B761C6F1FBBA6340088F589 /* AnyData.swift */,
-				8B8093501FE73BBF008C8EBB /* asd.swift */,
+				8B347E722000674A00D51F0C /* GlobalMethods.swift */,
+				8BA502A02009CA8E00154F2E /* Copyable.swift */,
+				8B347E682000672C00D51F0C /* RetroluxError.swift */,
+				8B9F9A661FEF771000D5FF8A /* QueryDestination.swift */,
 				8BDDDF381FA3AFAC00F3444D /* Extensions.swift */,
 				8B8093401FE706D3008C8EBB /* HTTPMethod.swift */,
 				8BB96DC11FABD7F100B8C614 /* HTTPHeaders.swift */,
@@ -237,7 +246,7 @@
 				8BAED7E01FA12EFE00D2F1EE /* Client.swift */,
 				8B94AF881FDF72C200E22D89 /* TaskDelegate.swift */,
 				8B4FD0891FC33E8800C7A8C8 /* URLSessionClient.swift */,
-				8BDD17151FB672890022E938 /* BuilderArgs */,
+				8B9F9A5C1FEF769000D5FF8A /* ReferenceDictionary.swift */,
 				8B9F005F1FBE5FB9002C7357 /* RemoveLater */,
 			);
 			path = Retrolux;
@@ -301,6 +310,9 @@
 		8B9F005F1FBE5FB9002C7357 /* RemoveLater */ = {
 			isa = PBXGroup;
 			children = (
+				8BDD171E1FBA2B390022E938 /* Path.swift */,
+				8BDD17161FB680760022E938 /* Query.swift */,
+				8B40C22B1FAA83CC00837D0A /* RequestArg.swift */,
 				8B5874AA1FC3D92000DCD0C1 /* retrofitCall.swift */,
 				499474C91F4B447B005F1131 /* Request.swift */,
 				8BDA67411FBFE7B60055F3B0 /* OldBuilder.swift */,
@@ -312,17 +324,6 @@
 				8B9F00571FBE292F002C7357 /* ContentDisposition.swift */,
 			);
 			path = RemoveLater;
-			sourceTree = "<group>";
-		};
-		8BDD17151FB672890022E938 /* BuilderArgs */ = {
-			isa = PBXGroup;
-			children = (
-				8B40C22B1FAA83CC00837D0A /* RequestArg.swift */,
-				8BDD17161FB680760022E938 /* Query.swift */,
-				8BDD171E1FBA2B390022E938 /* Path.swift */,
-				8BDA673B1FBF92ED0055F3B0 /* HTTPHeaderProtocol.swift */,
-			);
-			path = BuilderArgs;
 			sourceTree = "<group>";
 		};
 		B4030C56D32892C0CE2C1313 /* Pods */ = {
@@ -606,29 +607,32 @@
 				8B2351751FC13D94008E6FFF /* Query.swift in Sources */,
 				8B80934D1FE70866008C8EBB /* RequestBody.swift in Sources */,
 				8B23516A1FC13D91008E6FFF /* FactoryConverter.swift in Sources */,
-				49165DC01F4B392E00C65394 /* Builder.swift in Sources */,
+				49165DC01F4B392E00C65394 /* RequestBuilder.swift in Sources */,
 				8B9F00581FBE292F002C7357 /* ContentDisposition.swift in Sources */,
 				8B80934B1FE707F2008C8EBB /* ResponseBody.swift in Sources */,
+				8B347E692000672C00D51F0C /* RetroluxError.swift in Sources */,
 				8B5874AB1FC3D92000DCD0C1 /* retrofitCall.swift in Sources */,
 				8B761C741FBCD77B0088F589 /* FactoryRequest.swift in Sources */,
+				8B9F9A671FEF771000D5FF8A /* QueryDestination.swift in Sources */,
 				8B8093411FE706D3008C8EBB /* HTTPMethod.swift in Sources */,
 				8B23516B1FC13D91008E6FFF /* Call.swift in Sources */,
 				8B2351721FC13D94008E6FFF /* RequestArg.swift in Sources */,
 				8B23516E1FC13D91008E6FFF /* Response.swift in Sources */,
 				8B23516F1FC13D91008E6FFF /* Task.swift in Sources */,
 				8BB96DC41FB0BC2A00B8C614 /* MultipartFormData.swift in Sources */,
-				8B2351791FC13D94008E6FFF /* HTTPHeaderProtocol.swift in Sources */,
+				8B9F9A691FEF80E200D5FF8A /* AlamofireClient.swift in Sources */,
 				8BDA67421FBFE7B60055F3B0 /* OldBuilder.swift in Sources */,
 				8B23516D1FC13D91008E6FFF /* Extensions.swift in Sources */,
 				8B2351711FC13D91008E6FFF /* Client.swift in Sources */,
-				8BA6A9551FC9DD3B008184D8 /* RequestCreation.swift in Sources */,
 				8B2351781FC13D94008E6FFF /* HTTPHeaders.swift in Sources */,
+				8B9F9A5D1FEF769000D5FF8A /* ReferenceDictionary.swift in Sources */,
 				8BDD17191FB6809A0022E938 /* Field.swift in Sources */,
 				8B2351761FC13D94008E6FFF /* Multipart.swift in Sources */,
+				8BA502A12009CA8E00154F2E /* Copyable.swift in Sources */,
+				8B347E732000674A00D51F0C /* GlobalMethods.swift in Sources */,
 				8B94AF891FDF72C200E22D89 /* TaskDelegate.swift in Sources */,
 				8BDA67401FBFE3090055F3B0 /* RemoveExtensions.swift in Sources */,
 				8B4FD08A1FC33E8800C7A8C8 /* URLSessionClient.swift in Sources */,
-				8B8093511FE73BBF008C8EBB /* asd.swift in Sources */,
 				8B23516C1FC13D91008E6FFF /* AnyData.swift in Sources */,
 				8B2351701FC13D91008E6FFF /* TaskType.swift in Sources */,
 				8BB96DC71FB0C38D00B8C614 /* ContentType.swift in Sources */,

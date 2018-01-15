@@ -11,6 +11,6 @@ import Foundation
 public enum TaskType {
     case dataTask
     case downloadTask
-    case downloadTaskWithResumeData(Data)
+    case resumeTask(Data)
     case uploadTask(AnyData)
 }

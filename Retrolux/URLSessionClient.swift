@@ -40,19 +40,34 @@ import Foundation
 extension URLSession: Client {
 
     open func createTask(_ taskType: TaskType, with request: URLRequest, delegate: SingleTaskDelegate?, completionHandler: @escaping (Response<AnyData>) -> Void) -> Task {
-
-        let task: URLSessionTask
-
+        
+        var task: URLSessionTask!
+        
+        func response(_ body: Any?, _ urlResponse: URLResponse?, _ error: Error?) {
+            
+            completionHandler(
+                Response(
+                    body: (body as? Data).map { .data($0) } ?? (body as? URL).map { .url($0, temporary: true) },
+                    urlResponse: urlResponse,
+                    error: error,
+                    originalRequest: task.originalRequest ?? request,
+                    metrics: delegate?.metrics,
+                    resumeData: (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data,
+                    isValid: error == nil && (200..<300).contains((urlResponse as? HTTPURLResponse)?.statusCode ?? 0)
+                )
+            )
+        }
+        
         switch taskType {
 
         case .dataTask:
-            task = self.dataTask(with: request) { completionHandler(Response(request, $0.map { .data($0) }, $1, $2)) }
+            task = self.dataTask(with: request) { response($0, $1, $2) }
 
         case .downloadTask:
-            task = self.downloadTask(with: request)
+            task = self.downloadTask(with: request) { response($0, $1, $2) }
 
-        case .downloadTaskWithResumeData(let data):
-            task = self.downloadTask(withResumeData: data) { completionHandler(Response(request, $0.map { .url($0, temporary: false) }, $1, $2)) }
+        case .resumeTask(let data):
+            task = self.downloadTask(withResumeData: data) { response($0, $1, $2) }
 
         case .uploadTask(let data):
 
@@ -60,14 +75,17 @@ extension URLSession: Client {
 
             case .url(let url, let isTemporary):
                 task = self.uploadTask(with: request, fromFile: url) {
-                    completionHandler(Response(request, $0.map { .data($0) }, $1, $2))
+                    response($0, $1, $2)
+                    // don't want to remove file if request can be retried
                     try? url.removeFile(ifTemporary: isTemporary)
                 }
 
             case .data(let data):
-                task = self.uploadTask(with: request, from: data) { completionHandler(Response(request, $0.map { .data($0) }, $1, $2)) }
+                task = self.uploadTask(with: request, from: data) { response($0, $1, $2) }
             }
         }
+        
+        delegate?.task = task
 
         if let masterDelegate = self.delegate as? URLSessionMasterDelegate {
             masterDelegate[self][task] = delegate
@@ -79,13 +97,13 @@ extension URLSession: Client {
 
 public protocol SingleURLSessionDelegate: AnyObject {
     func didBecomeInvalid(error: Error?)
-    func didReceive(_ challenge: URLAuthenticationChallenge) -> (disposition: URLSession.AuthChallengeDisposition, credential: URLCredential?)
+    func didReceive(_ challenge: URLAuthenticationChallenge, _ completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     func didFinishEvents()
 }
 
 extension SingleURLSessionDelegate {
     public func didBecomeInvalid(error: Error?) {}
-    public func didReceive(_ challenge: URLAuthenticationChallenge) -> (disposition: URLSession.AuthChallengeDisposition, credential: URLCredential?) { return (.performDefaultHandling, nil) }
+    public func didReceive(_ challenge: URLAuthenticationChallenge, _ completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) { completionHandler(.performDefaultHandling, nil) }
     public func didFinishEvents() {}
 }
 
@@ -95,8 +113,8 @@ open class URLSessionDelegateManager {
 
     // cannot cast a swift value to an AnyObject and then to a protocol without casting to the original swift type
 
-    /// The delegates for each task.  Values should be SingleTaskDelegate
-    open var taskDelegates = NSMapTable<URLSessionTask, AnyObject>(keyOptions: .weakMemory, valueOptions: .weakMemory)
+    /// The delegates for each task.  Values should be SingleTaskDelegate (couldn't store protocol weakly).
+    open var taskDelegates = ReferenceDictionary<URLSessionTask, AnyObject>(key: .weak, value: .weak)
 
     open subscript(task: URLSessionTask) -> SingleTaskDelegate? {
         get {
@@ -110,13 +128,14 @@ open class URLSessionDelegateManager {
 
 open class URLSessionMasterDelegate: NSObject, URLSessionDataDelegate, URLSessionStreamDelegate, URLSessionDownloadDelegate {
 
-    open var sessions = NSMapTable<URLSession, URLSessionDelegateManager>(keyOptions: .weakMemory, valueOptions: .strongMemory)
+    // manager should be strong because no outside references hold them, deinitializes when urlSession is deinitialized
+    open var sessions = ReferenceDictionary<URLSession, URLSessionDelegateManager>(key: .weak, value: .strong)
 
     open static let shared = URLSessionMasterDelegate()
 
     open subscript(session: URLSession) -> URLSessionDelegateManager {
         get {
-            return self.sessions.object(forKey: session) ?? URLSessionDelegateManager()
+            return self.sessions.object(forKey: session) ?? { let manager = URLSessionDelegateManager(); self[session] = manager; return manager }()
         }
         set {
             self.sessions.setObject(newValue, forKey: session)
@@ -141,11 +160,7 @@ open class URLSessionMasterDelegate: NSObject, URLSessionDataDelegate, URLSessio
     }
 
     open func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if let (disposition, credential) = self.delegate(for: session)?.didReceive(challenge) {
-            completionHandler(disposition, credential)
-        } else {
-            completionHandler(.performDefaultHandling, nil)
-        }
+        self.delegate(for: session)?.didReceive(challenge, completionHandler)
     }
 
     open func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
@@ -166,7 +181,9 @@ open class URLSessionMasterDelegate: NSObject, URLSessionDataDelegate, URLSessio
     }
 
     open func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
-        self.delegate(for: task, in: session)?.didFinishCollecting(metrics)
+        let delegate = self.delegate(for: task, in: session)
+        delegate?.metrics = metrics
+        delegate?.didFinishCollecting(metrics)
     }
 
     open func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
@@ -174,36 +191,37 @@ open class URLSessionMasterDelegate: NSObject, URLSessionDataDelegate, URLSessio
     }
 
     open func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping (InputStream?) -> Void) {
-        completionHandler(self.delegate(for: task, in: session)?.needNewBodyStream())
+        self.delegate(for: task, in: session)?.needNewBodyStream(completionHandler)
     }
 
     open func urlSession(_ session: URLSession, task: URLSessionTask, willBeginDelayedRequest request: URLRequest, completionHandler: @escaping (URLSession.DelayedRequestDisposition, URLRequest?) -> Void) {
-        if let (disposition, request) = self.delegate(for: task, in: session)?.willBegin(request) {
-            completionHandler(disposition, request)
-        } else {
-            completionHandler(.continueLoading, nil)
-        }
+        self.delegate(for: task, in: session)?.willBegin(request, completionHandler)
     }
 
     open func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
-        completionHandler(self.delegate(for: task, in: session)?.willPerformHTTPRedirection(response, newRequest: request))
+        self.delegate(for: task, in: session)?.willPerformHTTPRedirection(response, newRequest: request, completionHandler)
     }
 
     //
     //// DataDelegate: TaskDelegate
     //dataDelegate.urlSession(<#T##session: URLSession##URLSession#>, dataTask: <#T##URLSessionDataTask#>, didBecome: <#T##URLSessionDownloadTask#>)
     //dataDelegate.urlSession(<#T##session: URLSession##URLSession#>, dataTask: <#T##URLSessionDataTask#>, didBecome: <#T##URLSessionStreamTask#>)
+    
+    private func _urlSession(_ session: URLSession, originalTask: URLSessionTask, didBecome task: URLSessionTask) {
+        let manager = self[session]
+        let delegate = manager[originalTask]
+        manager[task] = delegate
+        manager[originalTask] = nil
+        delegate?.task = task
+        delegate?.taskDidBecome(task)
+    }
 
     open func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didBecome downloadTask: URLSessionDownloadTask) {
-        self[session][downloadTask] = self[session][dataTask]
-        self[session][dataTask] = nil
-        self[session][downloadTask]?.didBecome(downloadTask)
+        self._urlSession(session, originalTask: dataTask, didBecome: downloadTask)
     }
 
     open func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didBecome streamTask: URLSessionStreamTask) {
-        self[session][streamTask] = self[session][dataTask]
-        self[session][dataTask] = nil
-        self[session][streamTask]?.didBecome(streamTask)
+        self._urlSession(session, originalTask: dataTask, didBecome: streamTask)
     }
 
     //
@@ -222,7 +240,7 @@ open class URLSessionMasterDelegate: NSObject, URLSessionDataDelegate, URLSessio
     }
 
     open func urlSession(_ session: URLSession, streamTask: URLSessionStreamTask, didBecome inputStream: InputStream, outputStream: OutputStream) {
-        self.delegate(for: streamTask, in: session)?.didBecome(inputStream, outputStream: outputStream)
+        self.delegate(for: streamTask, in: session)?.stream(didBecome: inputStream, outputStream: outputStream)
     }
 
     open func urlSession(_ session: URLSession, writeClosedFor streamTask: URLSessionStreamTask) {

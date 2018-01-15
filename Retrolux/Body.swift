@@ -20,6 +20,10 @@ public struct Body: RequestBody {
         self.httpHeaders = httpHeaders
     }
     
+    public init(_ data: Data, _ httpHeaders: HTTPHeaders) {
+        self.init(.data(data), httpHeaders)
+    }
+    
     /// returns self to conform to RequestBody
     public func requestBody() throws -> Body {
         return self

@@ -8,6 +8,27 @@
 
 import Foundation
 
+public enum RestfulHTTPMethod {
+    case list, create, retrieve, update, partialUpdate, destroy
+    
+    public var httpMethod: HTTPMethod {
+        switch self {
+        case .list, .retrieve: return .get
+        case .create: return .post
+        case .update: return .put
+        case .partialUpdate: return .patch
+        case .destroy: return .delete
+        }
+    }
+    
+    public var statusConfirmation: (Int) -> Bool {
+        switch self {
+        case .list, .retrieve, .update, .partialUpdate: return { $0 == 200 }
+        case .create: return { $0 == 201 }
+        case .destroy: return { $0 == 204 }
+        }
+    }
+}
 
 public enum HTTPMethod: String {
     case options = "OPTIONS"
@@ -27,7 +48,7 @@ public enum HTTPMethod: String {
 
 extension NSURLRequest {
     
-    open var httpMethod_enum: HTTPMethod? {
+    open var httpMethodEnum: HTTPMethod? {
         return HTTPMethod(self.httpMethod)
     }
 }
@@ -41,7 +62,7 @@ extension NSMutableURLRequest {
 
 extension URLRequest {
     
-    public var httpMethod_enum: HTTPMethod? {
+    public var httpMethodEnum: HTTPMethod? {
         get {
             return HTTPMethod(self.httpMethod)
         }
@@ -51,6 +72,6 @@ extension URLRequest {
     }
     
     public mutating func set(httpMethod: HTTPMethod) {
-        self.httpMethod_enum = httpMethod
+        self.httpMethodEnum = httpMethod
     }
 }
