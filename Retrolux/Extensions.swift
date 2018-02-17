@@ -182,7 +182,7 @@ extension URL {
     public static func temporaryFileURL() -> URL {
         
         func newURL() -> URL {
-            return URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).appendingPathComponent("retrolux_temp_" + UUID().uuidString)
+            return FileManager.default.temporaryDirectory.appendingPathComponent("retrolux_temp_" + UUID().uuidString)
         }
         
         var url = newURL()

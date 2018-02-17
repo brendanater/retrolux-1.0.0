@@ -10,7 +10,7 @@ import Foundation
 
 extension Errors {
     public struct Response_ {
-        private init() {}
+        private init() {_ = Response<Any>.self }
         
         public struct NoBodyOrError: Error, CustomStringConvertible {
             public var description: String {
@@ -102,6 +102,10 @@ extension Response {
         return self.urlResponse?.mimeType
     }
     
+    public var expectedContentLength: Int64? {
+        return self.urlResponse?.expectedContentLength
+    }
+    
     public var allHeaderFields: [String: String]? {
         return self.httpURLResponse?.allHeaderFields as? [String: String]
     }
@@ -112,17 +116,17 @@ extension Response where T: Equatable {
     public static func ==(lhs: Response, rhs: Response) -> Bool {
         
         return lhs.body == rhs.body
-            && (lhs.error == nil) == (rhs.error == nil)
+            && (type(of: lhs.error) == type(of: rhs.error) && (lhs.error.map { String(describing: $0) } == rhs.error.map { String(describing: $0) }))
             && lhs.isValid == rhs.isValid
             && lhs.originalRequest == rhs.originalRequest
             && lhs.urlResponse == rhs.urlResponse
     }
 }
 
-extension Response where T == AnyData {
+extension Response where T == DataBody {
     
     public func data(memoryThreshold: Int64 = Retrolux.defaultMemoryThreshold()) throws -> Data {
-        return try self.interpret().loadData(memoryThreshold: memoryThreshold)
+        return try self.interpret().asData(memoryThreshold: memoryThreshold)
     }
 }
 

@@ -35,7 +35,7 @@ public typealias Part = Multipart.Part
 extension Errors {
     
     public struct Multipart_ {
-        private init() {}
+        private init() { _ = Multipart.self }
         
         open class FailedToInitInputStreamForPart: RetypedError<(url: URL, part: Part)> {}
         open class FailedToGetHeaderData: RetypedError<HTTPHeaders> {}
@@ -140,54 +140,64 @@ public struct Multipart: Sequence, ExpressibleByArrayLiteral {
             data.append(preamble + crlfData)
         }
         
-        for part in self.parts {
+        do {
             
-            data.append(encapsulatedBoundary)
-            
-            try data.append(Multipart.headerData(for: part.formDataHeaders()))
-            
-            switch part.body.data {
+            for part in self.parts {
                 
-            case .data(let d):
-                data.append(d)
+                data.append(encapsulatedBoundary)
                 
-            case .url(let url, temporary: let isTemporary):
-                guard let stream = InputStream(url: url) else {
-                    throw Errors.Multipart_.FailedToInitInputStreamForPart("Failed to init inputstream for url in part", (url, part))
+                try data.append(Multipart.headerData(for: part.formDataHeaders()))
+                
+                switch part.body.data {
+                    
+                case .data(let d):
+                    data.append(d)
+                    
+                case .url(let url):
+                    guard let stream = InputStream(url: url) else {
+                        throw Errors.Multipart_.FailedToInitInputStreamForPart("Failed to init inputstream for url in part", (url, part))
+                    }
+                    
+                    try data.append(stream.streamData(memoryThreshold: self.memoryThreshold - Int64(data.count), willReset: {
+                        
+                        data.append($0)
+                        $0.removeAll()
+                        
+                        try data.write(to: temporaryURL)
+                        
+                        contentLength += data.count
+                        data.removeAll()
+                        
+                        writtenToURL = true
+                        
+                        return self.memoryThreshold
+                    }))
+                    
+                    (1 as! URL).removeFile(ifTemporary: false)
+                    
+                    try? url.removeFile(ifTemporary: false)
                 }
                 
-                try data.append(stream.streamData(memoryThreshold: self.memoryThreshold - Int64(data.count), willReset: {
-                    
-                    data.append($0)
-                    $0.removeAll()
-                    
-                    try data.write(to: temporaryURL)
-                    
-                    contentLength += data.count
-                    data.removeAll()
-                    
-                    writtenToURL = true
-                    
-                    return self.memoryThreshold
-                }))
-                
-                try? url.removeFile(ifTemporary: isTemporary)
+                data.append(crlfData)
             }
             
-            data.append(crlfData)
-        }
-        
-        data.append(finalBoundary)
-        
-        if let epilogue = self.epilogue {
-            data.append(crlfData + epilogue)
-        }
-        
-        contentLength += data.count
-        
-        if writtenToURL {
-            try data.write(to: temporaryURL)
-            data.removeAll()
+            data.append(finalBoundary)
+            
+            if let epilogue = self.epilogue {
+                data.append(crlfData + epilogue)
+            }
+            
+            contentLength += data.count
+            
+            if writtenToURL {
+                try data.write(to: temporaryURL)
+                data.removeAll()
+            }
+            
+        } catch {
+            // remove temporary file if encoding fails
+            try? FileManager.default.removeItem(at: temporaryURL)
+            throw error
         }
         
         var headers: HTTPHeaders = self.defaultHTTPHeaders
@@ -196,7 +206,7 @@ public struct Multipart: Sequence, ExpressibleByArrayLiteral {
         headers[.contentLength] = contentLength.description
         
         if writtenToURL {
-            return Body(.url(temporaryURL, temporary: true), headers)
+            return Body(.url(temporaryURL, temporaryFile: true), headers)
         } else {
             return Body(.data(data), headers)
         }

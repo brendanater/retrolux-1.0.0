@@ -10,13 +10,13 @@ import Foundation
 
 extension Errors {
     public struct FactoryEncoder_ {
-        private init() {}
+        private init() { _ = FactoryEncoder.self }
         
         open class UnsupportedValue: RetypedError<(value: Any, encoder: FactoryEncoder)> {}
     }
     
     public struct FactoryDecoder_ {
-        private init() {}
+        private init() { _ = FactoryDecoder.self }
         
         open class UnsupportedValue: RetypedError<(value: Any.Type, decoder: FactoryDecoder)> {}
     }
@@ -35,7 +35,7 @@ public protocol FactoryDecoder {
     
     func supports<T>(_ value: T.Type) -> Bool
     
-    func decode<T>(_ response: Response<AnyData>) throws -> T
+    func decode<T>(_ response: Response<DataBody>) throws -> T
 }
 
 extension FactoryEncoder {
@@ -99,7 +99,7 @@ extension JSONDecoder: FactoryDecoder {
         return value is Decodable.Type && !(value == Decodable.self || value == Codable.self)
     }
     
-    public func decode<T>(_ response: Response<AnyData>) throws -> T {
+    public func decode<T>(_ response: Response<DataBody>) throws -> T {
         try self.support(T.self)
         
         return try (T.self as! Decodable.Type).init(__from: response.data(), daskgdh: self) as! T
@@ -124,7 +124,7 @@ extension JSONSerialization: FactoryConverter {
         return Body(data, [.contentType: "application/json", .contentLength: data.count.description])
     }
     
-    public func decode<T>(_ response: Response<AnyData>) throws -> T {
+    public func decode<T>(_ response: Response<DataBody>) throws -> T {
         
         return try JSONSerialization.jsonObject(with: response.data(), options: .allowFragments) as? T ?? { throw self.unsupported(T.self) }()
     }

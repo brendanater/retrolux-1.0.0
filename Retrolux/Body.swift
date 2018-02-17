@@ -11,10 +11,10 @@ import Foundation
 
 public struct Body: RequestBody {
     
-    public var data: AnyData
+    public var data: DataBody
     public var httpHeaders: HTTPHeaders
     
-    public init(_ data: AnyData, _ httpHeaders: HTTPHeaders) {
+    public init(_ data: DataBody, _ httpHeaders: HTTPHeaders) {
         
         self.data = data
         self.httpHeaders = httpHeaders

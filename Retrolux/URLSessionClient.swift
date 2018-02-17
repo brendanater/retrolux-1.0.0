@@ -39,7 +39,7 @@ import Foundation
 
 extension URLSession: Client {
 
-    open func createTask(_ taskType: TaskType, with request: URLRequest, delegate: SingleTaskDelegate?, completionHandler: @escaping (Response<AnyData>) -> Void) -> Task {
+    open func createTask(_ taskType: TaskType, with request: URLRequest, delegate: SingleTaskDelegate?, completionHandler: @escaping (Response<DataBody>) -> Void) -> Task {
         
         var task: URLSessionTask!
         
@@ -47,7 +47,7 @@ extension URLSession: Client {
             
             completionHandler(
                 Response(
-                    body: (body as? Data).map { .data($0) } ?? (body as? URL).map { .url($0, temporary: true) },
+                    body: (body as? Data).map { .data($0) } ?? (body as? URL).map { .url($0, temporaryFile: true) },
                     urlResponse: urlResponse,
                     error: error,
                     originalRequest: task.originalRequest ?? request,
@@ -66,23 +66,25 @@ extension URLSession: Client {
         case .downloadTask:
             task = self.downloadTask(with: request) { response($0, $1, $2) }
 
-        case .resumeTask(let data):
+        case .downloadTaskWithResumeData(let data):
             task = self.downloadTask(withResumeData: data) { response($0, $1, $2) }
 
-        case .uploadTask(let data):
+        case .uploadTaskFromData(let data):
+            task = self.uploadTask(with: request, from: data)
 
-            switch data {
-
-            case .url(let url, let isTemporary):
-                task = self.uploadTask(with: request, fromFile: url) {
-                    response($0, $1, $2)
-                    // don't want to remove file if request can be retried
-                    try? url.removeFile(ifTemporary: isTemporary)
-                }
-
-            case .data(let data):
-                task = self.uploadTask(with: request, from: data) { response($0, $1, $2) }
-            }
+//            switch data {
+//
+//            case .url(let url, let isTemporary):
+//
+//            case .data(let data):
+//            }
+            
+        case .uploadTaskFromFile(let url):
+            task = self.uploadTask(with: request, fromFile: url) { response($0, $1, $2) }
+            
+        case .uploadTaskWithStream(let inputStream):
+            // FIXME: add inputStream handling to URLSession 'Client'
+            fatalError()
         }
         
         delegate?.task = task

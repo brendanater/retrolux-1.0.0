@@ -17,14 +17,16 @@ public struct Call<Return>: CallAdaptable {
     
     // can access urlRequest from call
     public let urlRequest: URLRequest
-    // autoResume to allow overriding the task.resume() default behaviour
+    public var callbackQueue: DispatchQueue?
+    /// if true, task.resume() is called before being returned from enqueue
     public var autoResume: Bool
     // pass back urlRequest to allow inline calls and avoid storing the request twice
     private let enqueue: ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task
     
-    public init(_ urlRequest: URLRequest, autoResume: Bool = true, _ enqueue: @escaping ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task) {
+    public init(_ urlRequest: URLRequest, callbackQueue: DispatchQueue? = nil, autoResume: Bool = true, _ enqueue: @escaping ((urlRequest: URLRequest, delegate: SingleTaskDelegate?, callback: (Response<Return>)->()))->Task) {
         
         self.urlRequest = urlRequest
+        self.callbackQueue = callbackQueue
         self.autoResume = autoResume
         self.enqueue = enqueue
     }

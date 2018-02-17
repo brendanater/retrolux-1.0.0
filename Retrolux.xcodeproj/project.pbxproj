@@ -14,7 +14,7 @@
 		499474CA1F4B447B005F1131 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499474C91F4B447B005F1131 /* Request.swift */; };
 		8B23516A1FC13D91008E6FFF /* FactoryConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B54192B1FA1294700B531A2 /* FactoryConverter.swift */; };
 		8B23516B1FC13D91008E6FFF /* Call.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDA673D1FBFBBB20055F3B0 /* Call.swift */; };
-		8B23516C1FC13D91008E6FFF /* AnyData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B761C6F1FBBA6340088F589 /* AnyData.swift */; };
+		8B23516C1FC13D91008E6FFF /* DataBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B761C6F1FBBA6340088F589 /* DataBody.swift */; };
 		8B23516D1FC13D91008E6FFF /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDDDF381FA3AFAC00F3444D /* Extensions.swift */; };
 		8B23516E1FC13D91008E6FFF /* Response.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BAED7E21FA1354800D2F1EE /* Response.swift */; };
 		8B23516F1FC13D91008E6FFF /* Task.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BAED7E41FA15F5400D2F1EE /* Task.swift */; };
@@ -25,9 +25,9 @@
 		8B2351761FC13D94008E6FFF /* Multipart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDD171A1FBA0C7F0022E938 /* Multipart.swift */; };
 		8B2351771FC13D94008E6FFF /* Path.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDD171E1FBA2B390022E938 /* Path.swift */; };
 		8B2351781FC13D94008E6FFF /* HTTPHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB96DC11FABD7F100B8C614 /* HTTPHeaders.swift */; };
-		8B2351941FC20EB3008E6FFF /* Alamofire.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B2351861FC20E5E008E6FFF /* Alamofire.framework */; };
 		8B347E692000672C00D51F0C /* RetroluxError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B347E682000672C00D51F0C /* RetroluxError.swift */; };
 		8B347E732000674A00D51F0C /* GlobalMethods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B347E722000674A00D51F0C /* GlobalMethods.swift */; };
+		8B4DB2F82036795B007B4BED /* OrderedDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4DB2F72036795B007B4BED /* OrderedDictionary.swift */; };
 		8B4FD08A1FC33E8800C7A8C8 /* URLSessionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4FD0891FC33E8800C7A8C8 /* URLSessionClient.swift */; };
 		8B5419291F9FEB3500B531A2 /* SimplifiedCoder.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B54192A1F9FEB3500B531A2 /* SimplifiedCoder.framework */; };
 		8B5874AB1FC3D92000DCD0C1 /* retrofitCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5874AA1FC3D92000DCD0C1 /* retrofitCall.swift */; };
@@ -132,11 +132,12 @@
 		8B347E682000672C00D51F0C /* RetroluxError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroluxError.swift; sourceTree = "<group>"; };
 		8B347E722000674A00D51F0C /* GlobalMethods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalMethods.swift; sourceTree = "<group>"; };
 		8B40C22B1FAA83CC00837D0A /* RequestArg.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestArg.swift; sourceTree = "<group>"; };
+		8B4DB2F72036795B007B4BED /* OrderedDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderedDictionary.swift; sourceTree = "<group>"; };
 		8B4FD0891FC33E8800C7A8C8 /* URLSessionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionClient.swift; sourceTree = "<group>"; };
 		8B54192A1F9FEB3500B531A2 /* SimplifiedCoder.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SimplifiedCoder.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B54192B1FA1294700B531A2 /* FactoryConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactoryConverter.swift; sourceTree = "<group>"; };
 		8B5874AA1FC3D92000DCD0C1 /* retrofitCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = retrofitCall.swift; sourceTree = "<group>"; };
-		8B761C6F1FBBA6340088F589 /* AnyData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyData.swift; sourceTree = "<group>"; };
+		8B761C6F1FBBA6340088F589 /* DataBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataBody.swift; sourceTree = "<group>"; };
 		8B761C731FBCD77B0088F589 /* FactoryRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactoryRequest.swift; sourceTree = "<group>"; };
 		8B8093401FE706D3008C8EBB /* HTTPMethod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPMethod.swift; sourceTree = "<group>"; };
 		8B80934A1FE707F2008C8EBB /* ResponseBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBody.swift; sourceTree = "<group>"; };
@@ -181,7 +182,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B2351941FC20EB3008E6FFF /* Alamofire.framework in Frameworks */,
 				8B5419291F9FEB3500B531A2 /* SimplifiedCoder.framework in Frameworks */,
 				B2C4CC3386ECB51C1DEF3B69 /* Pods_Retrolux.framework in Frameworks */,
 			);
@@ -230,11 +230,12 @@
 				8B80934A1FE707F2008C8EBB /* ResponseBody.swift */,
 				8B54192B1FA1294700B531A2 /* FactoryConverter.swift */,
 				8BDA673D1FBFBBB20055F3B0 /* Call.swift */,
-				8B761C6F1FBBA6340088F589 /* AnyData.swift */,
+				8B761C6F1FBBA6340088F589 /* DataBody.swift */,
 				8B347E722000674A00D51F0C /* GlobalMethods.swift */,
 				8BA502A02009CA8E00154F2E /* Copyable.swift */,
 				8B347E682000672C00D51F0C /* RetroluxError.swift */,
 				8B9F9A661FEF771000D5FF8A /* QueryDestination.swift */,
+				8B4DB2F72036795B007B4BED /* OrderedDictionary.swift */,
 				8BDDDF381FA3AFAC00F3444D /* Extensions.swift */,
 				8B8093401FE706D3008C8EBB /* HTTPMethod.swift */,
 				8BB96DC11FABD7F100B8C614 /* HTTPHeaders.swift */,
@@ -399,7 +400,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 0830;
-				LastUpgradeCheck = 0830;
+				LastUpgradeCheck = 0920;
 				ORGANIZATIONNAME = "Christopher Bryan Henderson";
 				TargetAttributes = {
 					4920EFFA1F3A8AB600874AFE = {
@@ -610,6 +611,7 @@
 				49165DC01F4B392E00C65394 /* RequestBuilder.swift in Sources */,
 				8B9F00581FBE292F002C7357 /* ContentDisposition.swift in Sources */,
 				8B80934B1FE707F2008C8EBB /* ResponseBody.swift in Sources */,
+				8B4DB2F82036795B007B4BED /* OrderedDictionary.swift in Sources */,
 				8B347E692000672C00D51F0C /* RetroluxError.swift in Sources */,
 				8B5874AB1FC3D92000DCD0C1 /* retrofitCall.swift in Sources */,
 				8B761C741FBCD77B0088F589 /* FactoryRequest.swift in Sources */,
@@ -633,7 +635,7 @@
 				8B94AF891FDF72C200E22D89 /* TaskDelegate.swift in Sources */,
 				8BDA67401FBFE3090055F3B0 /* RemoveExtensions.swift in Sources */,
 				8B4FD08A1FC33E8800C7A8C8 /* URLSessionClient.swift in Sources */,
-				8B23516C1FC13D91008E6FFF /* AnyData.swift in Sources */,
+				8B23516C1FC13D91008E6FFF /* DataBody.swift in Sources */,
 				8B2351701FC13D91008E6FFF /* TaskType.swift in Sources */,
 				8BB96DC71FB0C38D00B8C614 /* ContentType.swift in Sources */,
 			);
@@ -669,7 +671,9 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
@@ -677,7 +681,11 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -723,7 +731,9 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
@@ -731,7 +741,11 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;

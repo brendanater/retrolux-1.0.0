@@ -9,12 +9,14 @@
 import Foundation
 
 
+
 public protocol Copyable {
-    init(copy: Self)
+    /// Initialize a new copy using the values of self.  Init copy as! Self if subclass
+    init(self copy: Self)
 }
 
 extension Copyable {
     public func copy() -> Self {
-        return Self(copy: self)
+        return Self.init(self: self)
     }
 }

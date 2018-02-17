@@ -8,7 +8,27 @@
 
 import Foundation
 
-public enum RestfulHTTPMethod {
+public enum HTTPMethod: String {
+    case get     = "GET"
+    case post    = "POST"
+    case put     = "PUT"
+    case patch   = "PATCH"
+    case delete  = "DELETE"
+    case head    = "HEAD"
+    case options = "OPTIONS"
+    case trace   = "TRACE"
+    case connect = "CONNECT"
+    
+    public init?(_ httpMethod: String?) {
+        if let httpMethod = httpMethod {
+            self.init(rawValue: httpMethod)
+        } else {
+            return nil
+        }
+    }
+}
+
+public enum RestHTTPMethod {
     case list, create, retrieve, update, partialUpdate, destroy
     
     public var httpMethod: HTTPMethod {
@@ -21,57 +41,15 @@ public enum RestfulHTTPMethod {
         }
     }
     
-    public var statusConfirmation: (Int) -> Bool {
+    public var successfulStatusCode: Int {
         switch self {
-        case .list, .retrieve, .update, .partialUpdate: return { $0 == 200 }
-        case .create: return { $0 == 201 }
-        case .destroy: return { $0 == 204 }
-        }
-    }
-}
-
-public enum HTTPMethod: String {
-    case options = "OPTIONS"
-    case get     = "GET"
-    case head    = "HEAD"
-    case post    = "POST"
-    case put     = "PUT"
-    case patch   = "PATCH"
-    case delete  = "DELETE"
-    case trace   = "TRACE"
-    case connect = "CONNECT"
-    
-    public init?(_ httpMethod: String?) {
-        self.init(rawValue: httpMethod?.uppercased() ?? "%%$#")
-    }
-}
-
-extension NSURLRequest {
-    
-    open var httpMethodEnum: HTTPMethod? {
-        return HTTPMethod(self.httpMethod)
-    }
-}
-
-extension NSMutableURLRequest {
-    
-    open func set(httpMethod: HTTPMethod) {
-        self.httpMethod = httpMethod.rawValue
-    }
-}
-
-extension URLRequest {
-    
-    public var httpMethodEnum: HTTPMethod? {
-        get {
-            return HTTPMethod(self.httpMethod)
-        }
-        set {
-            self.httpMethod = newValue?.rawValue
+        case .list, .retrieve, .update, .partialUpdate: return 200
+        case .create: return 201
+        case .destroy: return 204
         }
     }
     
-    public mutating func set(httpMethod: HTTPMethod) {
-        self.httpMethodEnum = httpMethod
+    public var statusConfirmation: (Int) -> Bool {
+        return { [code = self.successfulStatusCode] in $0 == code }
     }
 }

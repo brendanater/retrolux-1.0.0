@@ -8,8 +8,8 @@
 
 import Foundation
 
-typealias User = String
-
+//typealias User = String
+//
 ///*
 // interface Interface {
 // @GET("users/{id}/")
@@ -98,7 +98,7 @@ typealias User = String
 
 extension Errors {
     public struct RequestBuilder_ {
-        private init() {}
+        private init() { _ = RequestBuilder.self /* reminder to rename this struct if changes are made */ }
         
         open class UnsupportedEncodeValue: RetypedError<(value: Any, encoders: [FactoryEncoder])> {}
         open class UnsupportedDecodeValue: RetypedError<(value: Any.Type, decoders: [FactoryDecoder])> {}
@@ -126,738 +126,1274 @@ extension Errors {
     }
 }
 
-open class RequestBuilder: Copyable {
+//extension RequestBuilder.StorageKey where Value == Any {
+//
+//    public static let endpoint               = Key<String>()
+//    public static let method                 = Key<HTTPMethod>()
+//
+//    public static let paths                  = Key<[(identifier: String?, value: CustomStringConvertible)]>()
+//
+//    public static let defaultPathIdentifier  = Key<String>()
+//    public static let headers                = Key<HTTPHeaders>()
+//    public static let queryDestination       = Key<QueryDestination>()
+//    public static let query                  = Key<[URLQueryItem]>()
+//    public static let fields                 = Key<[URLQueryItem]>()
+//    public static let multipart              = Key<Multipart>()
+//    public static let multipartFormat        = Key<(Multipart) throws -> Body>()
+//    public static let bodies                 = Key<[Body]>()
+//
+//    public static let encoders               = Key<[FactoryEncoder]>()
+//    public static let decoders               = Key<[FactoryDecoder]>()
+//    public static let client                 = Key<Client>()
+//    public static let statusConfirmation     = Key<(Int) -> Bool>()
+//    public static let callbackQueue          = Key<DispatchQueue>()
+//
+//    public static let download               = Key<Bool>()
+//    public static let resumeData             = Key<Data>()
+//    public static let upload                 = Key<Bool>()
+//
+//    public static let autoResume             = Key<Bool>()
+//    public static let requestInterceptor     = Key<(inout URLRequest) throws -> Void>()
+//    public static let responseInterceptor    = Key<(inout Response<AnyData>) throws -> Void>()
+//}
+//
+//public protocol BuilderProtocol {
+//    associatedtype Building
+//}
+//
+//public protocol VariableKey: AnyObject, Hashable {
+//    associatedtype Value
+//    /// for convenience in naming the value
+//    func fromStorage(_ value: Any) -> Value?
+//}
+//
+//extension VariableKey {
+//
+//    public func fromStorage(_ value: Any) -> Value? {
+//        return value as? Value
+//    }
+//
+//    public static func ==(lhs: Self, rhs: Self) -> Bool {
+//        return lhs === rhs
+//    }
+//}
+//
+///// a class that equates equal if lhs === rhs
+//open class UniqueKey: Hashable {
+//    public var hashValue: Int = arc4random().hashValue
+//    public static func ==(lhs: UniqueKey, rhs: UniqueKey) -> Bool {
+//        return lhs === rhs
+//    }
+//}
+//
+//open class UniqueVariableKey<Value>: UniqueKey, VariableKey {
+//
+//    public func fromStorage(_ value: Any) -> Value? {
+//        return value as? Value
+//    }
+//}
+//
+//// a big problem here is that the method on builder is constrained to the Builder type, but the action needs to be defined for each arg
+//
+//
+//
+//open class Builder<Result> {
+//
+//    open var modifiers: [UniqueKey : [Any]] = [:]
+//    open var action: [UniqueKey : (inout Result) throws -> Void] = [:]
+//
+//    public init() {}
+//
+//}
+
+
+// MARK: keys
+
+open class ReferenceKey: Hashable {
+    public var hashValue: Int = arc4random().hashValue
     
-    open var base: URL
-    open var endpoint: String
-    open var method: HTTPMethod
+    open static func ==(lhs: ReferenceKey, rhs: ReferenceKey) -> Bool {
+        return lhs === rhs
+    }
+}
+
+public protocol VariableKeyProtocol: AnyObject, Hashable {
+    associatedtype Value
+    func asValue(_ value: Any?) -> Value?
+}
+
+extension VariableKeyProtocol {
     
-    open var paths: [(identifier: String?, value: CustomStringConvertible)]
-    open var defaultPathIdentifier: String
-    open var headers: HTTPHeaders
-    open var queryDestination: QueryDestination?
-    /// the query of the request.  (Does not contain the query already in the url).  Might add to fields on build if queryDestination is set
-    open var query: [URLQueryItem]
-    /// the query to set to as httpBody. Might add to query if queryDestination is set
-    open var fields: [URLQueryItem]
-    open var multipart: Multipart
-    open var multipartFormat: (Multipart) throws -> Body
-    open var bodies: [Body]
-    
-    // request and response building
-    open var encoders: [FactoryEncoder]
-    open var decoders: [FactoryDecoder]
-    open var client: Client
-    open var statusConfirmation: ((Int) -> Bool)?
-    
-    // taskType
-    open var download: Bool
-    open var resumeData: Data?
-    /// if there is data to send, lets the builder know to send it as an upload task
-    open var upload: Bool
-    
-    // handlers
-    /// tasks created from this builder should call .resume() before being returned.
-    open var autoResume: Bool
-    /// for intercepting the request before being sent to the client.
-    open var requestInterceptor: ((inout URLRequest) throws -> Void)?
-    /// for intercepting the response after callback from the client
-    open var responseInterceptor: ((inout Response<AnyData>) throws -> Void)?
-    
-    /// init builder with a base URL and optional default values.
-    public init(
-        base: URL,
-        endpoint: String = "",
-        method: HTTPMethod = .get,
-        
-        paths: [(identifier: String?, value: CustomStringConvertible)] = [],
-        defaultPathIdentifier: String = "%@",
-        headers: HTTPHeaders = [:],
-        queryDestination: QueryDestination? = nil,
-        query: [URLQueryItem] = [],
-        fields: [URLQueryItem] = [],
-        multipart: Multipart = [],
-        multipartFormat: @escaping (Multipart) throws -> Body = { try $0.formData() },
-        bodies: [Body] = [],
-        
-        encoders: [FactoryEncoder] = [JSONEncoder(), JSONSerialization()],
-        decoders: [FactoryDecoder] = [JSONDecoder(), JSONSerialization()],
-        client: Client = URLSession(configuration: .default, delegate: URLSessionMasterDelegate.shared, delegateQueue: nil),
-        statusConfirmation: ((Int) -> Bool)? = nil,
-        
-        download: Bool = false,
-        resumeData: Data? = nil,
-        upload: Bool = false,
-        
-        autoResume: Bool = true,
-        requestInterceptor: ((inout URLRequest) throws -> Void)? = nil,
-        responseInterceptor: ((inout Response<AnyData>) throws -> Void)? = nil
-        ) {
-        
-        self.base = base
-        self.endpoint = endpoint
-        self.method = method
-        
-        self.paths = paths
-        self.defaultPathIdentifier = defaultPathIdentifier
-        self.headers = headers
-        self.queryDestination = queryDestination
-        self.query = query
-        self.fields = fields
-        self.multipart = multipart
-        self.multipartFormat = multipartFormat
-        self.bodies = bodies
-        
-        self.encoders = encoders
-        self.decoders = decoders
-        self.client = client
-        self.statusConfirmation = statusConfirmation
-        
-        self.download = download
-        self.resumeData = resumeData
-        self.upload = upload
-        
-        self.autoResume = autoResume
-        self.requestInterceptor = requestInterceptor
-        self.responseInterceptor = responseInterceptor
+    public func asValue(_ value: Any?) -> Value? {
+        return value as? Value
     }
     
-    public convenience init!(baseURL: String) {
-        if let url = URL(string: baseURL) {
-            self.init(base: url)
-        } else {
-            return nil
+    public static func ==(lhs: Self, rhs: Self) -> Bool {
+        return lhs === rhs
+    }
+}
+
+open class VariableKey<Value>: ReferenceKey, VariableKeyProtocol {
+    
+    public func asValue(_ value: Any?) -> Value? {
+        return value as? Value
+    }
+}
+
+//    open class BuilderKey<T, Building>: Key {
+//
+//        open var set: ActionSetting
+//        open var createAction: (T) -> (T, inout Building) throws -> Void
+//
+//        public init(set: ActionSetting, createAction: @escaping (T) -> (T, inout Building) throws -> Void) {
+//            self.set = set
+//            self.createAction = createAction
+//        }
+//    }
+//public protocol BuilderKeyProtocol: Hashable {
+//    associatedtype Builder
+//    associatedtype Building
+//
+//    var set: ActionSetting {get}
+//    var createAction: (Builder) -> (Builder, inout Building) throws -> Void {get}
+//}
+
+// MARK: actions
+
+// MARK: BuilderProtocol
+
+public protocol BuilderProtocol {
+    
+    associatedtype Building
+    
+    var storage: [AnyHashable : Any] {get set}
+    var actions: OrderedDictionary<AnyHashable, (Any, inout Building) throws -> Void> {get set}
+    
+    func buildResult() throws -> Building
+    
+    func copy() -> Self
+}
+
+extension BuilderProtocol {
+    
+    public mutating func setAction(_ key: AnyHashable, _ action: @escaping (inout Building, Self) throws -> Void) {
+        self.actions[key] = {
+            guard let builder = $0 as? Self else { return }
+            try action(&$1, builder)
         }
     }
     
-    public required init(copy: RequestBuilder) {
-        self.base = copy.base
-        self.endpoint = copy.endpoint
-        self.method = copy.method
+    public mutating func setAction(_ key: AnyHashable, _ action: @escaping (inout Building) throws -> Void) {
+        self.actions[key] = {
+            _ = $0
+            try action(&$1)
+        }
+    }
+    
+    /// returns the result of mutating a reference to self.copy()
+    public func performMutation<T>(_ mutateCopy: (inout Self) throws -> T) rethrows -> T {
+        var copy = self.copy()
+        return try mutateCopy(&copy)
+    }
+    
+    //
+    
+    public subscript<Key: VariableKeyProtocol>(key: Key) -> Key.Value? {
+        get {
+            return key.asValue(self.storage[key])
+        }
+        set {
+            self.storage[key] = newValue
+        }
+    }
+    
+    //
+    
+    public func wait<U>(_ didWait: @escaping (Self) -> U) -> () -> U {
+        return { [builder = self.copy()] in
+            didWait(builder.copy())
+        }
+    }
+    
+    public func wait<U>(_ didWait: @escaping (Self) throws -> U) -> () throws -> U {
+        return { [builder = self.copy()] in
+            try didWait(builder.copy())
+        }
+    }
+    
+    public func wait<T, U>(for args: T.Type = T.self, _ didWait: @escaping (Self, T) -> U) -> (T) -> U {
         
-        self.paths = copy.paths
-        self.defaultPathIdentifier = copy.defaultPathIdentifier
-        self.headers = copy.headers
-        self.query = copy.query
-        self.fields = copy.fields
-        self.multipart = copy.multipart
-        self.multipartFormat = copy.multipartFormat
-        self.bodies = copy.bodies
+        return { [builder = self.copy()] in
+            didWait(builder.copy(), $0)
+        }
+    }
+    
+    public func wait<T, U>(for args: T.Type = T.self, _ didWait: @escaping (Self, T) throws -> U) -> (T) throws -> U {
         
-        self.encoders = copy.encoders
-        self.decoders = copy.decoders
-        self.client = copy.client
-        self.statusConfirmation = copy.statusConfirmation
+        return { [builder = self.copy()] in
+            try didWait(builder.copy(), $0)
+        }
+    }
+    
+    //
+}
+
+// MARK: RequestBuilder
+
+public protocol RequestBuilderProtocol: BuilderProtocol where Building == RequestBuilder.Building {}
+
+public struct RequestBuilder: RequestBuilderProtocol {
+    
+    public typealias Building = CallBuildable
+    
+    public var storage: [AnyHashable : Any] = [:]
+    public var actions: OrderedDictionary<AnyHashable, (Any, inout CallBuildable) throws -> Void> = [:]
+    
+    public var baseURL: URL
+    
+    public init(base baseURL: URL) {
         
-        self.download = copy.download
-        self.resumeData = copy.resumeData
-        self.upload = copy.upload
+        self.baseURL = baseURL
+    }
+    
+    public func buildResult() throws -> CallBuildable {
         
-        self.autoResume = copy.autoResume
-        self.requestInterceptor = copy.requestInterceptor
-        self.responseInterceptor = copy.responseInterceptor
-    }
-    
-    // MARK: starting a request
-    // returns a new builder, auto-setting values
-    
-    /// return a new builder with the method and endpoint
-    open func make(_ method: HTTPMethod, _ endpoint: String) -> Self {
+        var result = CallBuildable(base: self.baseURL)
         
-        return self.copy()
-            .method(method)
-            .endpoint(endpoint)
-    }
-    
-    /// return a new builder with the restful method and endpoint
-    open func make(restful: RestfulHTTPMethod, _ endpoint: String) -> Self {
+        try self.actions.forEach({ try $0.value(self, &result) })
         
-        return self.copy()
-            .method(restful: restful)
-            .endpoint(endpoint)
+        return result
     }
     
-    // make with default methods
-    
-    open func get(_ endpoint: String) -> Self {
-        return self.make(.get, endpoint)
-    }
-    
-    open func post(_ endpoint: String) -> Self {
-        return self.make(.post, endpoint)
-    }
-    
-    open func head(_ endpoint: String) -> Self {
-        return self.make(.head, endpoint)
-    }
-    
-    open func put(_ endpoint: String) -> Self {
-        return self.make(.put, endpoint)
-    }
-    
-    open func patch(_ endpoint: String) -> Self {
-        return self.make(.patch, endpoint)
-    }
-    
-    open func delete(_ endpoint: String) -> Self {
-        return self.make(.delete, endpoint)
-    }
-    
-    // make with default restful methods
-    
-    open func list(_ endpoint: String) -> Self {
-        return self.make(restful: .list, endpoint)
-    }
-    
-    open func create(_ endpoint: String) -> Self {
-        return self.make(restful: .create, endpoint)
-    }
-    
-    open func retrieve(_ endpoint: String) -> Self {
-        return self.make(restful: .retrieve, endpoint)
-    }
-    
-    open func update(_ endpoint: String) -> Self {
-        return self.make(restful: .update, endpoint)
-    }
-    
-    open func partialUpdate(_ endpoint: String) -> Self {
-        return self.make(restful: .partialUpdate, endpoint)
-    }
-    
-    open func destroy(_ endpoint: String) -> Self {
-        return self.make(restful: .destroy, endpoint)
-    }
-    
-    // MARK: method
-    
-    open func method(_ method: HTTPMethod) -> Self {
-        
-        self.method = method
-        
+    public func copy() -> RequestBuilder {
         return self
     }
+}
+
+// MARK: RequestBuilder.Building
+
+public struct CallBuildable {
     
-    open func method(restful: RestfulHTTPMethod) -> Self {
+    /*
+     There can be only one value that defines TaskType.
+     if setting a new value, remove other values (if modified).
+     (urlRequest.httpBody, urlRequest.httpBodyStream, uploadURL, and resumeData)
+     */
+    
+    public var urlRequest: URLRequest {
+        willSet {
+            
+            if newValue.isHTTPBodySet, newValue.httpBody != self.urlRequest.httpBody || newValue.httpBodyStream != self.urlRequest.httpBodyStream {
+                
+                self.resetBody()
+            }
+        }
+    }
+    
+    private var _isPullingTemporaryURL: Bool = false
+    /// The url to upload from.  Use \.removeUploadURL() to remove temporary file from self, without deleting it.
+    public var uploadURL: URL? {
+        willSet {
+            if newValue != self.uploadURL {
+                
+                if let uploadURL = self.uploadURL, !self._isPullingTemporaryURL {
+                    try? FileManager.default.removeIfInCurrentTemporary(uploadURL)
+                }
+                
+                if newValue != nil {
+                    self.resetBody()
+                }
+            }
+        }
+    }
+    
+    /// if the request is not uploading, sends the request as TaskType: .downloadTask
+    public var download: Bool
+    /// if there is an httpBody or the request is streamed, removes httpBody or input stream and sets it to TaskType: .uploadTaskFromData(_) or .uploadTaskWithStream(_)
+    public var upload: Bool
+    /// set the taskType to .downloadTaskwithResumeData(_)
+    public var resumeData: Data? {
+        willSet {
+            if newValue != nil && newValue != self.resumeData {
+                self.resetBody()
+            }
+        }
+    }
+    public var client: Client
+    public var callbackQueue: DispatchQueue?
+    public var autoResume: Bool
+    public var confirmations: [AnyHashable : (inout Response<DataBody>) throws -> Void]
+    public var decoders: [FactoryDecoder]
+    
+    public var isBodySet: Bool {
+        return self.urlRequest.isHTTPBodySet || self.uploadURL != nil || self.resumeData != nil
+    }
+    
+    public init(base: URL) {
+        self.urlRequest = URLRequest(url: base)
+        self.uploadURL = nil
+        self.download = false
+        self.upload = false
+        self.resumeData = nil
+        self.client = URLSession.init(configuration: .default, delegate: URLSessionMasterDelegate.shared, delegateQueue: nil)
+        self.callbackQueue = nil
+        self.autoResume = true
+        self.confirmations = [:]
+        self.decoders = []
+    }
+    
+    
+    /// removes all data on self
+    public mutating func resetBody() {
+        
+        if self.urlRequest.isHTTPBodySet {
+            self.urlRequest.httpBody = nil
+            
+        } else if self.uploadURL != nil {
+            self.uploadURL = nil
+            
+        } else if self.resumeData != nil {
+            self.resumeData = nil
+        }
+    }
+    
+    /// removes \.uploadURL without removing temporary file
+    public mutating func pullTemporaryUploadURL() -> URL? {
+        self._isPullingTemporaryURL = true
+        defer { self.uploadURL = nil ; self._isPullingTemporaryURL = false }
+        return self.uploadURL
+    }
+    
+    public func decodeHandler<T>(for value: T.Type = T.self) throws -> (Response<DataBody>) throws -> T {
+        
+        for decoder in self.decoders {
+            if decoder.supports(value) {
+                return decoder.decode(_:)
+            }
+        }
+        
+        if let metaType = value as? ResponseBody.Type {
+
+            return { try metaType.init(from: $0) as! T }
+
+        } else {
+            throw {fatalError("Error not created: No decoders can decode \(value)")}()
+        }
+    }
+    
+    /// applies \.download, \.upload, and \.resumeData to get TaskType.  Returns taskType and \.urlRequest (because httpBody or httpBodyStream is removed if \.upload == true)
+    public func taskType() -> (taskType: TaskType, urlRequest: URLRequest) {
+        
+        var taskType: TaskType = .dataTask
+        var urlRequest = self.urlRequest
+        
+        if self.download {
+            taskType = .downloadTask
+        }
+        
+        if self.upload {
+            if let httpBody = self.urlRequest.httpBody {
+                taskType = .uploadTaskFromData(httpBody)
+            } else if let httpBodyStream = self.urlRequest.httpBodyStream {
+                taskType = .uploadTaskWithStream(httpBodyStream)
+            }
+            urlRequest.httpBody = nil
+        }
+        
+        if let uploadURL = self.uploadURL {
+            taskType = .uploadTaskFromFile(uploadURL)
+        }
+        
+        if let resumeData = self.resumeData {
+            taskType = .downloadTaskWithResumeData(resumeData)
+        }
+        
+        return (taskType, urlRequest)
+    }
+    
+    public func build<T: CallAdaptable>(_ call: T.Type = T.self) throws -> T {
+        
+        let (taskType, urlRequest) = self.taskType()
+        
+        return try T( Call<T.Return>.init(urlRequest, callbackQueue: self.callbackQueue, autoResume: self.autoResume, {
+            [client = self.client,
+            confirmations = self.confirmations.values,
+            decodeHandler = self.decodeHandler(for: T.Return.self)
+            ] enqueue in
+            
+            return client.createTask(taskType, with: enqueue.urlRequest, delegate: enqueue.delegate, completionHandler: {
+                
+                var response = $0
+                
+                do {
+                    
+                    for confirmation in confirmations {
+                        try confirmation(&response)
+                    }
+                    
+                } catch {
+                    
+                    response.error = error
+                    response.isValid = false
+                }
+                
+                enqueue.callback(response.convert(decodeHandler))
+                
+            })
+        }))
+    }
+}
+
+// MARK: build
+
+extension RequestBuilderProtocol {
+    
+    public func build<T: CallAdaptable>(_ call: T.Type = T.self) throws -> T {
+        
+        return try self.buildResult().build()
+    }
+}
+
+// MARK: methods, endpoint, and statusConfirmation
+
+extension RequestBuilderProtocol {
+
+    //
+    
+    public var get    : Self { return self.method(.get    ) }
+    public var post   : Self { return self.method(.post   ) }
+    public var put    : Self { return self.method(.put    ) }
+    public var patch  : Self { return self.method(.patch  ) }
+    public var delete : Self { return self.method(.delete ) }
+    public var head   : Self { return self.method(.head   ) }
+    public var options: Self { return self.method(.options) }
+    public var trace  : Self { return self.method(.trace  ) }
+    public var connect: Self { return self.method(.connect) }
+
+    public func get    (_ endpoint: String) -> Self { return self.method(.get    ).endpoint(endpoint) }
+    public func post   (_ endpoint: String) -> Self { return self.method(.post   ).endpoint(endpoint) }
+    public func put    (_ endpoint: String) -> Self { return self.method(.put    ).endpoint(endpoint) }
+    public func patch  (_ endpoint: String) -> Self { return self.method(.patch  ).endpoint(endpoint) }
+    public func delete (_ endpoint: String) -> Self { return self.method(.delete ).endpoint(endpoint) }
+    public func head   (_ endpoint: String) -> Self { return self.method(.head   ).endpoint(endpoint) }
+    public func options(_ endpoint: String) -> Self { return self.method(.options).endpoint(endpoint) }
+    public func trace  (_ endpoint: String) -> Self { return self.method(.trace  ).endpoint(endpoint) }
+    public func connect(_ endpoint: String) -> Self { return self.method(.connect).endpoint(endpoint) }
+    
+    public func method(_ method: HTTPMethod) -> Self {
+        
+        return self.performMutation { copy in
+            
+            copy.actions["method"] = { builder, building in
+                guard let builder = builder as? Self else { return }
+                
+                building.urlRequest.httpMethod = method.rawValue
+            }
+            
+            return copy
+        }
+    }
+    
+    //
+    
+    /// url = URL(string: endpoint.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!, relativeTo: url?.baseURL ?? url!
+    public func endpoint(_ endpoint: String) -> Self {
+        
+        return self.performMutation { copy in
+            
+            copy.building.urlRequest.url = URL(
+                string: endpoint.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+                    ?? { fatalError("Failed to add percent encoding to endpoint: \(endpoint.debugDescription)") }(),
+                relativeTo: copy.building.urlRequest.url?.baseURL
+                    ?? copy.building.urlRequest.url
+                    ?? { fatalError("Cannot set endpoint: \(endpoint.debugDescription) without a url") }()
+            )
+            
+            return copy
+        }
+    }
+    
+    //
+    
+    public var list         : Self { return self.method(restful: .list         ) }
+    public var create       : Self { return self.method(restful: .create       ) }
+    public var retrieve     : Self { return self.method(restful: .retrieve     ) }
+    public var update       : Self { return self.method(restful: .update       ) }
+    public var partialUpdate: Self { return self.method(restful: .partialUpdate) }
+    public var destroy      : Self { return self.method(restful: .destroy      ) }
+    
+    public func list         (_ newEndpoint: String) -> Self { return self.method(restful: .list         ).endpoint(newEndpoint) }
+    public func create       (_ newEndpoint: String) -> Self { return self.method(restful: .create       ).endpoint(newEndpoint) }
+    public func retrieve     (_ newEndpoint: String) -> Self { return self.method(restful: .retrieve     ).endpoint(newEndpoint) }
+    public func update       (_ newEndpoint: String) -> Self { return self.method(restful: .update       ).endpoint(newEndpoint) }
+    public func partialUpdate(_ newEndpoint: String) -> Self { return self.method(restful: .partialUpdate).endpoint(newEndpoint) }
+    public func destroy      (_ newEndpoint: String) -> Self { return self.method(restful: .destroy      ).endpoint(newEndpoint) }
+    
+    public func method(restful: RestHTTPMethod) -> Self {
         
         return self
             .method(restful.httpMethod)
             .statusConfirmation(restful.statusConfirmation)
     }
     
-    // MARK: statusConfirmation
-    
-    open func statusConfirmation(_ statusConfirmation: @escaping (Int) -> Bool) -> Self {
-        
-        self.statusConfirmation = statusConfirmation
-        
-        return self
-    }
-    
-    // MARK: endpoint
-    
-    open func endpoint(_ newEndpoint: String) -> Self {
-        
-        self.endpoint = newEndpoint
-        
-        return self
-    }
-    
-    // MARK: path
-    
-    open func path(exactly identifier: String? = nil, _ formatWith: CustomStringConvertible) -> Self {
-        
-        self.paths.append((identifier, formatWith))
-        
-        return self
-    }
-    
-    open func path(_ identifier: String, _ formatWith: CustomStringConvertible) -> Self {
-        
-        self.paths.append(("{\(identifier)}", formatWith))
-        
-        return self
-    }
-    
-    open func path(_ formatWith: [CustomStringConvertible]) -> Self {
-        
-        for formatWith in formatWith {
-            _ = self.path(formatWith)
-        }
-        
-        return self
-    }
-    
-    // TODO: add other path functions
-    
-    // MARK: query
-    
-    open func queryDestination(_ destination: QueryDestination) -> Self {
-        
-        self.queryDestination = destination
-        
-        return self
-    }
-    
-    open func query(_ name: String, value: String?) -> Self {
-        
-        self.query.append(URLQueryItem(name, value))
-        
-        return self
-    }
-    
-    // TODO: add more query methods
-    
-    // MARK: field
-    
-    open func field(_ name: String, value: String?) -> Self {
-        
-        self.fields.append(URLQueryItem(name, value))
-        
-        return self
-    }
-    
-    // TODO: add more field methods
-    
-    // MARK: body
-    
-    open func body(_ body: Body) -> Self {
-        
-        self.bodies.append(body)
-        
-        return self
-    }
-    
-    open func body<T>(_ value: T) throws -> Self {
-        
-        return try self.body(self.buildEncodedBody(value))
-    }
-    
-    // MARK: part
-    
-    
-    open func part(_ part: Part) -> Self {
-        self.multipart.parts.append(part)
-        return self
-    }
-    
-    open func part(_ name: String, _ body: Body, fileName: String? = nil) -> Self {
-        return self.part(Part(name: name, body, filename: fileName))
-    }
-    
-    open func parts(_ parts: [Part]) -> Self {
-        
-        for part in parts {
-            _ = self.part(part)
-        }
-        
-        return self
-    }
-    
-    // MARK: header
-    
-    open func header(_ field: HTTPHeaders.Field, _ value: String) -> Self {
-        
-        self.headers[field] = value
-        
-        return self
-    }
-    
-    open func headers(_ httpHeaders: HTTPHeaders) -> Self {
-        
-        for (field, value) in httpHeaders {
-            _ = self.header(field, value)
-        }
-        
-        return self
-    }
-
-    // MARK: wait
-
-    open func wait<U>(_ didWait: @escaping (RequestBuilder) -> U) -> () -> U {
-        return { [builder = self.copy()] in
-            didWait(builder.copy())
-        }
-    }
-
-    open func wait<U>(_ didWait: @escaping (RequestBuilder) throws -> U) -> () throws -> U {
-        return { [builder = self.copy()] in
-            try didWait(builder.copy())
-        }
-    }
-
-    open func wait<T, U>(for args: T.Type = T.self, _ apply: @escaping (RequestBuilder, T) -> U) -> (T) -> U {
-
-        return { [builder = self.copy()] in
-            apply(builder.copy(), $0)
-        }
-    }
-
-    open func wait<T, U>(for args: T.Type = T.self, _ apply: @escaping (RequestBuilder, T) throws -> U) -> (T) throws -> U {
-
-        return { [builder = self.copy()] in
-            try apply(builder.copy(), $0)
-        }
-    }
-    
-    // MARK: build
-    
     //
     
-    open func buildEncodedBody<T>(_ value: T) throws -> Body {
-        
-        for encoder in self.encoders {
-            if encoder.supports(value) {
-                return try encoder.encode(value)
-            }
-        }
-        
-        if value is RequestBody {
-            return try (value as! RequestBody).requestBody()
-        }
-        
-        throw Errors.RequestBuilder_.UnsupportedEncodeValue("No encoders could support/encode \(type(of: value)).", (value: value, encoders: self.encoders))
+    public func statusConfirmation(_ statusCode: Int) -> Self {
+        return self.statusConfirmation({ $0 == statusCode })
     }
     
-    open func buildDecodeHandler<T>(for value: T.Type) -> (Response<AnyData>) throws -> T {
+    public func statusConfirmation(_ statusConfirmation: ((Int) -> Bool)?) -> Self {
         
-        // because the decode happens an indeterminate time later, it has to capture the decoders
-        
-        return { [decoders = self.decoders] in
+        return self.performMutation { copy in
             
-            for decoder in decoders {
-                if decoder.supports(value) {
-                    return try decoder.decode($0)
-                }
-            }
-            
-            if T.self is ResponseBody.Type, T.self != ResponseBody.self {
-                return try (T.self as! ResponseBody.Type).init(from: $0) as! T
-            }
-            
-            throw Errors.RequestBuilder_.UnsupportedDecodeValue("No decoders could support/decode \(value)", (value: value, decoders: decoders))
-        }
-    }
-    
-    //
-    
-    open func buildTaskType(with data: AnyData? = nil) -> TaskType {
-        
-        // .dataTask has lowest priority
-        var taskType: TaskType = .dataTask
-        
-        // .downloadTask has second
-        if self.download {
-            taskType = .downloadTask
-        }
-        
-        // .uploadTask has third
-        if let data = data, self.upload || data.isURL {
-            taskType = .uploadTask(data)
-        }
-        
-        // .resumeData has highest priority
-        if let resumeData = self.resumeData {
-            taskType = .resumeTask(resumeData)
-        }
-        
-        return taskType
-    }
-    
-    //
-    
-    open func buildBody() throws -> Body? {
-        
-        var body = self.bodies.first
-        
-        if self.bodies.count > 1 {
-            throw Errors.RequestBuilder_.MultipleBodies(
-                "Multiple bodies set to \(type(of: self)).",
-                .multipleBodiesSetToBuilder(bodies: self.bodies),
-                recovery: "Set only one body."
-            )
-        }
-        
-        if let fieldBody = try self.buildFieldBody() {
-            
-            if let body = body {
-                throw Errors.RequestBuilder_.MultipleBodies(
-                    "Cannot set a field body when there is already a body set.",
-                    .cannotSetFieldBody(fieldBody, presetBody: body),
-                    recovery: "Remove fields or remove body.  Remember that, by default, queryDestination might be merging query with fields; Make sure queryDestination is set to nil or .queryString."
-                )
-            }
-            
-            body = fieldBody
-        }
-        
-        if let multipartBody = try self.buildMultipartBody() {
-            
-            if let body = body {
-                throw Errors.RequestBuilder_.MultipleBodies(
-                    "Cannot set a multipart body when there is already a body set.",
-                    .cannotSetMultipartBody(multipartBody, presetBody: body),
-                    recovery: "Remove multipart parts or remove body."
-                )
-            }
-            
-            body = multipartBody
-        }
-        
-        return body
-    }
-    
-    //
-    
-    open func buildMultipartBody() throws -> Body? {
-        return try self.multipart.isEmpty ? nil : self.multipartFormat(self.multipart)
-    }
-    
-    //
-    
-    open func buildFieldBody() throws -> Body? {
-        
-        let fields = self.queryDestination.map { $0.shouldSetToBody(withMethod: self.method) ? self.fields + self.query : [] } ?? self.fields
-        
-        return try self.buildQuery(fields).map { query in
-            
-            let encoding = self.queryDestination?.encoding ?? .utf8
-            
-            guard let data = query.data(using: encoding, allowLossyConversion: false) else {
+            copy.building.confirmations[_statusConfirmationKey] = statusConfirmation.map { statusConfirmation in
                 
-                throw Errors.RequestBuilder_.FailedToEncodeFields("Failed to encode field query to data", (fields, query, encoding))
-            }
-            
-            return Body(data, [.contentType : "application/x-www-form-urlencoded" + (encoding.charset.map { "; charset=\($0)" } ?? ""), .contentLength : data.count.description])
-        }
-    }
-    
-    //
-    
-    public static let queryUnescapedCharacterSet: CharacterSet = {
-        
-        var unescapedCharacters = CharacterSet.urlQueryAllowed
-        unescapedCharacters.remove(charactersIn: ":#[]@" + "!$&'()*+,;=")
-        
-        return unescapedCharacters
-    }()
-    
-    open func buildQuery(_ queryItems: [URLQueryItem]? = nil, addTo presetQuery: String? = nil) throws -> String? {
-        
-        func _result(_ query: String?) -> String? {
-            
-            switch (presetQuery, query) {
+                return { response in
                 
-            case (.some(let presetQuery), .some(let query)):
-                return presetQuery + "&" + query
-                
-            case (.some(let presetQuery), .none):
-                return presetQuery
-                
-            case (.none, .some(let query)):
-                return query
-                
-            case (.none, .none):
-                return nil
-            }
-        }
-        
-        let queryItems = queryItems ?? self.queryDestination.map { $0.shouldSetToQuery(withMethod: self.method) ? self.fields + self.query : [] } ?? self.query
-        
-        if queryItems.isEmpty {
-            return _result(nil)
-        }
-        
-        let query = try queryItems.map {
-            
-            guard
-                let name = $0.name.addingPercentEncoding(withAllowedCharacters: type(of: self).queryUnescapedCharacterSet),
-                let value = ($0.value ?? "").addingPercentEncoding(withAllowedCharacters: type(of: self).queryUnescapedCharacterSet)
-            else {
-                throw Errors.RequestBuilder_.FailedToBuildQuery("Failed to add percent encoding to query item", ($0, queryItems))
-            }
-            
-            return "\(name)=\(value)"
-            
-        }.joined(separator: "&")
-        
-        return _result(query)
-    }
-    
-    //
-    
-    /// RequestBuilder: Formats the path, adding values for each identifier (defaulting to the defaultPathIdentifier) in the same order that they appear on the path.  Path must have equal amount of identifiers on path to values and not contain part or all of another identifier.
-    open func buildPath(formatting originalPath: String) throws -> String {
-        
-        if self.paths.isEmpty {
-            return originalPath
-        }
-        
-        var path = originalPath
-        
-        var valuesForIdentifier: [String: [CustomStringConvertible]] = [:]
-        
-        for (identifier, value) in self.paths {
-            valuesForIdentifier.appendElement(value, forKey: identifier ?? self.defaultPathIdentifier)
-        }
-        
-        var replacementIdentifier: String! = nil
-        var sortableValues: [(offset: Int, value: CustomStringConvertible)] = []
-        
-        for (identifier, values) in valuesForIdentifier {
-            
-            // remove identifier to keep from checking if it contains itself
-            valuesForIdentifier.removeValue(forKey: identifier)
-            
-            try valuesForIdentifier.forEach({
-                if $0.key.contains(identifier) {
-                    throw Errors.RequestBuilder_.BuildPathFailed("A path identifier contains another identifier.", .identifierContainsIdentifier(identifier: $0.key, containsIdentifier: identifier))
-                }
-            })
-            
-            if identifier.isEmpty {
-                throw Errors.RequestBuilder_.BuildPathFailed("Cannot find ranges of empty identifier in path", .emptyIdentifierForValuesCannotFindRanges(values: values))
-            }
-            
-            let ranges = originalPath.ranges(of: identifier)
-            
-            guard ranges.count == values.count else {
-                if ranges.count == 0 {
-                    throw Errors.RequestBuilder_.BuildPathFailed(
-                        "Identifier (\(identifier.debugDescription)) not found in path: \(originalPath)",
-                        .identifierNotFoundInPath(path: originalPath, identifier: identifier)
-                    )
-                } else if ranges.count > values.count {
-                    throw Errors.RequestBuilder_.BuildPathFailed(
-                        "Too many identifiers (\(identifier.debugDescription)) found in path: \(originalPath).  Expected: \(values.count)",
-                        .tooManyIdentifiersFoundInPath(path: originalPath, identifier: identifier, found: ranges.count, expected: values.count)
-                    )
-                } else {
-                    throw Errors.RequestBuilder_.BuildPathFailed(
-                        "Not enough identifiers (\(identifier.debugDescription)) found in path: \(originalPath).  Expected: \(values.count)",
-                        .notEnoughIdentifiersFoundInPath(path: originalPath, identifier: identifier, found: ranges.count, expected: values.count)
-                    )
-                }
-            }
-            
-            // if an identifier contains part of another, it is not caught. ( "test%@" technically has "test%" and "%@", but neither contains the other. )
-            
-            // set all identifiers to a central identifier
-            path = path.replacingOccurrences(of: identifier, with: replacementIdentifier ?? { replacementIdentifier = identifier ; return identifier }())
-            
-            // the encoded offset will be the sortable for which values to replace
-            sortableValues.append(contentsOf: zip(ranges, values).map { ($0.0.lowerBound.encodedOffset, $0.1) } as [(offset: Int, value: CustomStringConvertible)])
-            
-            // put identifier back to check if it contains the next identifiers
-            valuesForIdentifier[identifier] = []
-        }
-        
-        var components = path.components(separatedBy: replacementIdentifier)
-        
-        let values = sortableValues.sorted(by: { $0.offset < $1.offset }).map { $0.value }
-        
-        guard values.count == components.count - 1 else {
-            throw Errors.RequestBuilder_.BuildPathFailed(
-                "Uneven identifiers to values. One or more path identifiers likely contains part of another identifier.",
-                .anIdentifierLikelyContainsPartOfAnother(identifiers: valuesForIdentifier.map { $0.key }),
-                recovery: "Check for identifiers that may conflict and check the path for spots where identifiers overlap.  Example: 'id%' conflicts with '%@' and the path contains 'id%@'."
-            )
-        }
-        
-        path.removeAll()
-        
-        for value in values {
-            path.append(components.removeFirst() + value.description)
-        }
-        
-        path.append(components.removeLast())
-        
-        return path
-    }
-    
-    //
-    
-    open func buildURL() throws -> URL {
-        
-        var components = self.base.appendingPathComponent(self.endpoint).components!
-        
-        components.path = try self.buildPath(formatting: components.path)
-        
-        components.query = try self.buildQuery(addTo: components.query)
-        
-        return components.url!
-    }
-    
-    //
-    
-    open func buildRequest() throws -> (urlRequest: URLRequest, taskType: TaskType) {
-        
-        var urlRequest = try URLRequest(url: self.buildURL())
-        
-        urlRequest.set(httpMethod: self.method)
-        
-        let body = try self.buildBody()
-        
-        var headers = self.headers
-        for (field, value) in body?.httpHeaders ?? [:] {
-            headers[field] = value
-        }
-        
-        urlRequest.httpHeaders = headers
-        
-        let taskType = self.buildTaskType(with: body?.data)
-        
-        if case .dataTask = taskType {
-            urlRequest.httpBody = body?.data.dataValue
-        }
-        
-        try self.requestInterceptor?(&urlRequest)
-        
-        return (urlRequest, taskType)
-    }
-
-    open func buildConfirmation() -> (inout Response<AnyData>) throws -> Void {
-
-        return { [statusConfirmation = self.statusConfirmation] in
-
-            try self.responseInterceptor?(&$0)
-
-            if $0.isValid,
-                let statusCode = $0.statusCode,
-                let statusConfirmation = statusConfirmation {
-
-                $0.isValid = statusConfirmation(statusCode)
-            }
-        }
-    }
-
-    open func build<T: CallAdaptable>(_ call: T.Type = T.self) throws -> T {
-
-        let value = T.Return.self
-        let (urlRequest, taskType) = try self.buildRequest()
-        
-        return T(
-            Call<T.Return>(urlRequest, autoResume: self.autoResume) { [client = self.client, confirmation = self.buildConfirmation(), decodeHandler = self.buildDecodeHandler(for: value)] in
-                
-                let callback = $0.callback
-                
-                return client.createTask(taskType, with: $0.urlRequest, delegate: $0.delegate) {
-
-                    var response = $0
-
-                    do {
-                        try confirmation(&response)
-                    } catch {
-                        response.error = response.error ?? error
-                        response.isValid = false
+                    if response.isValid, let statusCode = response.statusCode {
+                        response.isValid = statusConfirmation(statusCode)
                     }
-
-                    callback(response.convert(decodeHandler))
                 }
             }
-        )
+            
+            return copy
+        }
     }
 }
+
+private let _statusConfirmationKey = ReferenceKey()
+
+// MARK: url
+
+extension RequestBuilderProtocol {
+    
+    /// urlRequest.url = newURL
+    public func url(_ newURL: URL) -> Self {
+        
+        return self.performMutation { copy in
+            
+            copy.building.urlRequest.url = newURL
+            
+            return copy
+        }
+    }
+}
+
+// MARK: taskType
+
+private var _taskTypeActionKey = ReferenceKey()
+
+private var _isUploadKey = ReferenceKey()
+
+extension RequestBuilderProtocol {
+    
+    public func willDownload(_ willDownload: Bool = true) -> Self {
+        
+        return self.performMutation { copy in
+            
+            copy.building.taskResolving.willDownload = willDownload
+            
+            return copy
+        }
+    }
+    
+    public func asUpload(_ asUpload: Bool) -> Self {
+        
+        return self.performMutation { copy in
+            
+            copy.building.taskResolving.asUpload = asUpload
+            
+            return copy
+        }
+    }
+    
+    public func resume(with resumeData: Data) -> Self {
+        return self.performMutation { copy in
+            
+            copy.building.taskResolving.resumeData = resumeData
+            
+            return copy
+        }
+    }
+}
+
+
+//
+//open class RequestBuilder: Copyable {
+//
+//    // base cannot have a default value, so its not in storage
+//    open var base: URL
+//    open var storage: [AnyHashable : Any] = [:]
+//
+//    open var endpoint: String                                                   { get { return self[Key.endpoint                ] ?? "" } set { self[Key.endpoint   ] = newValue } }
+//    open var method: HTTPMethod                                                 { get { return self[Key.method                  ] ?? .get       } set { self[Key.method     ] = newValue } }
+//
+//    open var paths: [(identifier: String?, value: CustomStringConvertible)]     { get { return self[Key.paths                   ] ?? []         } set { self[Key.paths      ] = newValue } }
+//
+//    open var defaultPathIdentifier: String                                      { get { return self[Key.defaultPathIdentifier   ] ?? "%@"       } set { self[Key.defaultPathIdentifier] = newValue } }
+//    open var headers: HTTPHeaders                                               { get { return self[Key.headers                 ] ?? [:]        } set { self[Key.headers            ] = newValue } }
+//    open var queryDestination: QueryDestination?                                { get { return self[Key.queryDestination        ]               } set { self[Key.queryDestination   ] = newValue } }
+//    open var query: [URLQueryItem]                                              { get { return self[Key.query                   ] ?? []         } set { self[Key.query              ] = newValue } }
+//    open var fields: [URLQueryItem]                                             { get { return self[Key.fields                  ] ?? []         } set { self[Key.fields             ] = newValue } }
+//    open var multipart: Multipart                                               { get { return self[Key.multipart               ] ?? []         } set { self[Key.multipart          ] = newValue } }
+//    open var multipartFormat: (Multipart) throws -> Body                        { get { return self[Key.multipartFormat         ] ?? { try $0.formData() } } set { self[Key.multipartFormat] = newValue } }
+//    open var bodies: [Body]                                                     { get { return self[Key.bodies                  ] ?? []         } set { self[Key.bodies  ] = newValue } }
+//
+//    open var encoders: [FactoryEncoder]                                         { get { return self[Key.encoders                ] ?? []         } set { self[Key.encoders] = newValue } }
+//    open var decoders: [FactoryDecoder]                                         { get { return self[Key.decoders                ] ?? []         } set { self[Key.decoders] = newValue } }
+//
+//    open var client: Client                                                     { get { return self[Key.client                  ] ?? URLSession(configuration: .default, delegate: URLSessionMasterDelegate.shared, delegateQueue: nil) } set { self[Key.client] = newValue } }
+//    open var statusConfirmation: ((Int) -> Bool)?                               { get { return self[Key.statusConfirmation      ]               } set { self[Key.statusConfirmation] = newValue } }
+//    open var callbackQueue: DispatchQueue?                                      { get { return self[Key.callbackQueue           ]               } set { self[Key.callbackQueue] = newValue } }
+//
+//    open var download: Bool                                                     { get { return self[Key.download                ] ?? false      } set { self[Key.download] = newValue } }
+//    open var resumeData: Data?                                                  { get { return self[Key.resumeData              ]               } set { self[Key.resumeData] = newValue } }
+//    open var upload: Bool                                                       { get { return self[Key.upload                  ] ?? false      } set { self[Key.upload] = newValue } }
+//
+//    open var autoResume: Bool                                                   { get { return self[Key.autoResume              ] ?? true       } set { self[Key.autoResume] = newValue } }
+//    open var requestInterceptor: ((inout URLRequest) throws -> Void)?           { get { return self[Key.requestInterceptor      ]               } set { self[Key.requestInterceptor] = newValue } }
+//    open var responseInterceptor: ((inout Response<AnyData>) throws -> Void)?   { get { return self[Key.responseInterceptor     ]               } set { self[Key.responseInterceptor] = newValue } }
+//
+//    public init(base: URL) {
+//        self.base = base
+//    }
+//
+//    public required init(self copy: RequestBuilder) {
+//        self.base = copy.base
+//        self.storage = copy.storage
+//    }
+//
+//    open subscript<Key: VariableKey>(key: Key) -> Key.Value? {
+//        get {
+//            return self.storage[key] as? Key.Value
+//        }
+//        set {
+//            self.storage[key] = newValue
+//        }
+//    }
+//
+//    private typealias Key = StorageKey
+//
+//    open class StorageKey<Value>: VariableKey {
+//        public var valueType: Value.Type {
+//            return Value.self
+//        }
+//        public typealias NewKey = StorageKey
+//        public typealias Key<NewValue> = StorageKey<NewValue>
+//
+//        public let hashValue: Int
+//
+//        public init() {
+//            self.hashValue = arc4random().hashValue
+//        }
+//    }
+//
+//    // MARK: starting a request
+//    // returns a new builder, auto-setting values
+//
+//    /// return a new builder with the method and endpoint
+//    open func make(_ method: HTTPMethod, _ endpoint: String) -> Self {
+//
+//        return self.copy()
+//            .method(method)
+//            .endpoint(endpoint)
+//    }
+//
+//    /// return a new builder with the restful method and endpoint
+//    open func make(restful: RestHTTPMethod, _ endpoint: String) -> Self {
+//
+//        return self.copy()
+//            .method(restful: restful)
+//            .endpoint(endpoint)
+//    }
+//
+//    // make with default methods
+//
+//    open func get(_ endpoint: String) -> Self {
+//        return self.make(.get, endpoint)
+//    }
+//
+//    open func post(_ endpoint: String) -> Self {
+//        return self.make(.post, endpoint)
+//    }
+//
+//    open func head(_ endpoint: String) -> Self {
+//        return self.make(.head, endpoint)
+//    }
+//
+//    open func put(_ endpoint: String) -> Self {
+//        return self.make(.put, endpoint)
+//    }
+//
+//    open func patch(_ endpoint: String) -> Self {
+//        return self.make(.patch, endpoint)
+//    }
+//
+//    open func delete(_ endpoint: String) -> Self {
+//        return self.make(.delete, endpoint)
+//    }
+//
+//    // make with default restful methods
+//
+//    open func list(_ endpoint: String) -> Self {
+//        return self.make(restful: .list, endpoint)
+//    }
+//
+//    open func create(_ endpoint: String) -> Self {
+//        return self.make(restful: .create, endpoint)
+//    }
+//
+//    open func retrieve(_ endpoint: String) -> Self {
+//        return self.make(restful: .retrieve, endpoint)
+//    }
+//
+//    open func update(_ endpoint: String) -> Self {
+//        return self.make(restful: .update, endpoint)
+//    }
+//
+//    open func partialUpdate(_ endpoint: String) -> Self {
+//        return self.make(restful: .partialUpdate, endpoint)
+//    }
+//
+//    open func destroy(_ endpoint: String) -> Self {
+//        return self.make(restful: .destroy, endpoint)
+//    }
+//
+//    // MARK: method
+//
+//    open func method(_ method: HTTPMethod) -> Self {
+//
+//        self.method = method
+//        return self
+//    }
+//
+//    open func method(restful: RestHTTPMethod) -> Self {
+//
+//        return self
+//            .method(restful.httpMethod)
+//            .statusConfirmation(restful.statusConfirmation)
+//    }
+//
+//    // MARK: statusConfirmation
+//
+//    open func statusConfirmation(_ statusConfirmation: @escaping (Int) -> Bool) -> Self {
+//
+//        self.statusConfirmation = statusConfirmation
+//        return self
+//    }
+//
+//    // MARK: endpoint
+//
+//    open func endpoint(_ newEndpoint: String) -> Self {
+//
+//        self.endpoint = newEndpoint
+//        return self
+//    }
+//
+//    open func url(_ base: URL) -> Self {
+//
+//        self.base = base
+//        return self
+//    }
+//
+//    // MARK: path
+//
+//    open func path(exactly identifier: String? = nil, _ formatWith: CustomStringConvertible) -> Self {
+//
+//        self.paths.append((identifier: identifier, value: formatWith))
+//        return self
+//    }
+//
+//    open func path(_ identifier: String, _ formatWith: CustomStringConvertible) -> Self {
+//
+//        return self.path(exactly: "{\(identifier)}", formatWith)
+//    }
+//
+//    open func path(_ formatWith: [CustomStringConvertible]) -> Self {
+//
+//        for formatWith in formatWith {
+//            _ = self.path(formatWith)
+//        }
+//        return self
+//    }
+//
+//    // TODO: add other path functions
+//
+//    // MARK: queryDestination
+//
+//    open func queryDestination(_ destination: QueryDestination) -> Self {
+//
+//        self.queryDestination = destination
+//        return self
+//    }
+//
+//    // MARK: query
+//
+//    open func query(_ name: String, value: String?) -> Self {
+//
+//        self.query.append(URLQueryItem(name, value))
+//        return self
+//    }
+//
+//    // TODO: add more query methods
+//
+//    // MARK: field
+//
+//    open func field(_ name: String, value: String?) -> Self {
+//
+//        self.fields.append(URLQueryItem(name, value))
+//        return self
+//    }
+//
+//    // TODO: add more field methods
+//
+//    // MARK: body
+//
+//    open func body(_ body: Body) -> Self {
+//
+//        self.bodies.append(body)
+//        return self
+//    }
+//
+//    open func body<T>(_ value: T) throws -> Self {
+//
+//        return try self.body(self.buildEncodedBody(value))
+//    }
+//
+//    // MARK: part
+//
+//
+//    open func part(_ part: Part) -> Self {
+//
+//        self.multipart.parts.append(part)
+//        return self
+//    }
+//
+//    open func part(_ name: String, _ body: Body, fileName: String? = nil) -> Self {
+//        return self.part(Part(name: name, body, filename: fileName))
+//    }
+//
+//    open func part<T>(_ name: String, _ value: T, filename: String? = nil) throws -> Self {
+//        return self.part(name, try self.buildEncodedBody(value), fileName: filename)
+//    }
+//
+//    open func parts(_ parts: [Part]) -> Self {
+//
+//        for part in parts {
+//            _ = self.part(part)
+//        }
+//        return self
+//    }
+//
+//    // MARK: header
+//
+//    open func header(_ field: HTTPHeaders.Field, _ value: String) -> Self {
+//
+//        self.headers[field] = value
+//        return self
+//    }
+//
+//    open func headers(_ httpHeaders: HTTPHeaders) -> Self {
+//
+//        for (field, value) in httpHeaders {
+//            _ = self.header(field, value)
+//        }
+//
+//        return self
+//    }
+//
+//    // MARK: wait
+//
+//    open func wait<U>(_ didWait: @escaping (RequestBuilder) -> U) -> () -> U {
+//        return { [builder = self.copy()] in
+//            didWait(builder.copy())
+//        }
+//    }
+//
+//    open func wait<U>(_ didWait: @escaping (RequestBuilder) throws -> U) -> () throws -> U {
+//        return { [builder = self.copy()] in
+//            try didWait(builder.copy())
+//        }
+//    }
+//
+//    open func wait<T, U>(for args: T.Type = T.self, _ apply: @escaping (RequestBuilder, T) -> U) -> (T) -> U {
+//
+//        return { [builder = self.copy()] in
+//            apply(builder.copy(), $0)
+//        }
+//    }
+//
+//    open func wait<T, U>(for args: T.Type = T.self, _ apply: @escaping (RequestBuilder, T) throws -> U) -> (T) throws -> U {
+//
+//        return { [builder = self.copy()] in
+//            try apply(builder.copy(), $0)
+//        }
+//    }
+//
+//    // MARK: build
+//
+//    //
+//
+//    open func buildEncodedBody<T>(_ value: T) throws -> Body {
+//
+//        for encoder in self.encoders {
+//            if encoder.supports(value) {
+//                return try encoder.encode(value)
+//            }
+//        }
+//
+//        if value is RequestBody {
+//            return try (value as! RequestBody).requestBody()
+//        }
+//
+//        throw Errors.RequestBuilder_.UnsupportedEncodeValue("No encoders could support/encode \(type(of: value)).", (value: value, encoders: self.encoders))
+//    }
+//
+//    open func buildDecodeHandler<T>(for value: T.Type) -> (Response<AnyData>) throws -> T {
+//
+//        // because the decode happens some time later, have to capture the decoders
+//
+//        return { [decoders = self.decoders] in
+//
+//            for decoder in decoders {
+//                if decoder.supports(value) {
+//                    return try decoder.decode($0)
+//                }
+//            }
+//
+//            if let value = value as? ResponseBody.Type, value != ResponseBody.self {
+//                return try value.init(from: $0) as! T
+//            }
+//
+//            throw Errors.RequestBuilder_.UnsupportedDecodeValue("No decoders could support/decode \(value)", (value: value, decoders: decoders))
+//        }
+//    }
+//
+//    //
+//
+//    open func buildTaskType(with data: AnyData? = nil) -> TaskType {
+//
+//        // .dataTask has lowest priority
+//        var taskType: TaskType = .dataTask
+//
+//        // .downloadTask has second
+//        if self.download {
+//            taskType = .downloadTask
+//        }
+//
+//        // .uploadTask has third
+//        if let data = data, self.upload || data.isURL {
+//            taskType = .uploadTask(data)
+//        }
+//
+//        // .resumeData has highest priority
+//        if let resumeData = self.resumeData {
+//            taskType = .resumeTask(resumeData)
+//        }
+//
+//        return taskType
+//    }
+//
+//    //
+//
+//    open func buildBody() throws -> Body? {
+//
+//        let bodies = self.bodies
+//
+//        var body = bodies.first
+//
+//        if bodies.count > 1 {
+//            throw Errors.RequestBuilder_.MultipleBodies(
+//                "Multiple bodies set to \(type(of: self)).",
+//                .multipleBodiesSetToBuilder(bodies: bodies),
+//                recovery: "Set only one body."
+//            )
+//        }
+//
+//        if let fieldBody = try self.buildFieldBody() {
+//
+//            if let body = body {
+//                throw Errors.RequestBuilder_.MultipleBodies(
+//                    "Cannot set a field body when there is already a body set.",
+//                    .cannotSetFieldBody(fieldBody, presetBody: body),
+//                    recovery: "Remove fields or remove body.  Remember that, by default, queryDestination might be merging query with fields; Make sure queryDestination is set to nil or .queryString."
+//                )
+//            }
+//
+//            body = fieldBody
+//        }
+//
+//        if let multipartBody = try self.buildMultipartBody() {
+//
+//            if let body = body {
+//                throw Errors.RequestBuilder_.MultipleBodies(
+//                    "Cannot set a multipart body when there is already a body set.",
+//                    .cannotSetMultipartBody(multipartBody, presetBody: body),
+//                    recovery: "Remove multipart parts or remove body."
+//                )
+//            }
+//
+//            body = multipartBody
+//        }
+//
+//        return body
+//    }
+//
+//    //
+//
+//    open func buildMultipartBody() throws -> Body? {
+//        return try self.multipart.isEmpty ? nil : self.multipartFormat(self.multipart)
+//    }
+//
+//    //
+//
+//    open func buildFieldBody() throws -> Body? {
+//
+//        let fields = self.queryDestination.map { $0.shouldSetToBody(withMethod: self.method) ? self.fields + self.query : [] } ?? self.fields
+//
+//        return try self.buildQuery(fields).map { query in
+//
+//            let encoding = self.queryDestination?.encoding ?? .utf8
+//
+//            guard let data = query.data(using: encoding, allowLossyConversion: false) else {
+//
+//                throw Errors.RequestBuilder_.FailedToEncodeFields("Failed to encode fields to data", (fields, query, encoding))
+//            }
+//
+//            return Body(data, [.contentType : "application/x-www-form-urlencoded" + (encoding.charset.map { "; charset=\($0)" } ?? ""), .contentLength : data.count.description])
+//        }
+//    }
+//
+//    //
+//
+//    public static let queryUnescapedCharacterSet: CharacterSet = {
+//
+//        var unescapedCharacters = CharacterSet.urlQueryAllowed
+//        unescapedCharacters.remove(charactersIn: ":#[]@" + "!$&'()*+,;=")
+//
+//        return unescapedCharacters
+//    }()
+//
+//    open func buildQuery(_ queryItems: [URLQueryItem]? = nil, addTo presetQuery: String? = nil) throws -> String? {
+//
+//        func _result(_ query: String?) -> String? {
+//
+//            switch (presetQuery, query) {
+//
+//            case (.some(let presetQuery), .some(let query)):
+//                return presetQuery + "&" + query
+//
+//            case (.some(let presetQuery), .none):
+//                return presetQuery
+//
+//            case (.none, .some(let query)):
+//                return query
+//
+//            case (.none, .none):
+//                return nil
+//            }
+//        }
+//
+//        let queryItems = queryItems ?? self.queryDestination.map { $0.shouldSetToQuery(withMethod: self.method) ? self.fields + self.query : [] } ?? self.query
+//
+//        if queryItems.isEmpty {
+//            return _result(nil)
+//        }
+//
+//        let query = try queryItems.map {
+//
+//            guard
+//                let name = $0.name.addingPercentEncoding(withAllowedCharacters: type(of: self).queryUnescapedCharacterSet),
+//                let value = ($0.value ?? "").addingPercentEncoding(withAllowedCharacters: type(of: self).queryUnescapedCharacterSet)
+//            else {
+//                throw Errors.RequestBuilder_.FailedToBuildQuery("Failed to add percent encoding to query item", ($0, queryItems))
+//            }
+//
+//            return "\(name)=\(value)"
+//
+//        }.joined(separator: "&")
+//
+//        return _result(query)
+//    }
+//
+//    //
+//
+//    /// RequestBuilder: Formats the path, adding values for each identifier (defaulting to the defaultPathIdentifier) in the same order that they appear on the path.  Path must have equal amount of identifiers on path to values and not contain part or all of another identifier.
+//    open func buildPath(formatting originalPath: String) throws -> String {
+//
+//        if self.paths.isEmpty {
+//            return originalPath
+//        }
+//
+//        var path = originalPath
+//
+//        var valuesForIdentifier: [String: [CustomStringConvertible]] = [:]
+//
+//        for (identifier, value) in self.paths {
+//            valuesForIdentifier.appendElement(value, forKey: identifier ?? self.defaultPathIdentifier)
+//        }
+//
+//        var replacementIdentifier: String! = nil
+//        var sortableValues: [(offset: Int, value: CustomStringConvertible)] = []
+//
+//        for (identifier, values) in valuesForIdentifier {
+//
+//            // remove identifier to keep from checking if it contains itself
+//            valuesForIdentifier.removeValue(forKey: identifier)
+//
+//            try valuesForIdentifier.forEach({
+//                if $0.key.contains(identifier) {
+//                    throw Errors.RequestBuilder_.BuildPathFailed("A path identifier contains another identifier.", .identifierContainsIdentifier(identifier: $0.key, containsIdentifier: identifier))
+//                }
+//            })
+//
+//            if identifier.isEmpty {
+//                throw Errors.RequestBuilder_.BuildPathFailed("Cannot find ranges of empty identifier in path", .emptyIdentifierForValuesCannotFindRanges(values: values))
+//            }
+//
+//            let ranges = originalPath.ranges(of: identifier)
+//
+//            guard ranges.count == values.count else {
+//                if ranges.count == 0 {
+//                    throw Errors.RequestBuilder_.BuildPathFailed(
+//                        "Identifier (\(identifier.debugDescription)) not found in path: \(originalPath)",
+//                        .identifierNotFoundInPath(path: originalPath, identifier: identifier)
+//                    )
+//                } else if ranges.count > values.count {
+//                    throw Errors.RequestBuilder_.BuildPathFailed(
+//                        "Too many identifiers (\(identifier.debugDescription)) found in path: \(originalPath).  Expected: \(values.count)",
+//                        .tooManyIdentifiersFoundInPath(path: originalPath, identifier: identifier, found: ranges.count, expected: values.count)
+//                    )
+//                } else {
+//                    throw Errors.RequestBuilder_.BuildPathFailed(
+//                        "Not enough identifiers (\(identifier.debugDescription)) found in path: \(originalPath).  Expected: \(values.count)",
+//                        .notEnoughIdentifiersFoundInPath(path: originalPath, identifier: identifier, found: ranges.count, expected: values.count)
+//                    )
+//                }
+//            }
+//
+//            // if an identifier contains part of another, it is not caught. ( "test%@" technically has "test%" and "%@", but neither contains the other. )
+//
+//            // set all identifiers to a central identifier
+//            path = path.replacingOccurrences(of: identifier, with: replacementIdentifier ?? { replacementIdentifier = identifier ; return identifier }())
+//
+//            // the encoded offset will be the sortable for which values to replace
+//            sortableValues.append(contentsOf: zip(ranges, values).map { ($0.0.lowerBound.encodedOffset, $0.1) } as [(offset: Int, value: CustomStringConvertible)])
+//
+//            // put identifier back to check if it contains the next identifiers
+//            valuesForIdentifier[identifier] = []
+//        }
+//
+//        var components = path.components(separatedBy: replacementIdentifier)
+//
+//        let values = sortableValues.sorted(by: { $0.offset < $1.offset }).map { $0.value }
+//
+//        guard values.count == components.count - 1 else {
+//            throw Errors.RequestBuilder_.BuildPathFailed(
+//                "Uneven identifiers to values count. One or more path identifiers likely contains part of another identifier.",
+//                .anIdentifierLikelyContainsPartOfAnother(identifiers: valuesForIdentifier.map { $0.key }),
+//                recovery: "Check for identifiers that may conflict and check the path for spots where identifiers overlap.  Example: 'id%' conflicts with '%@' and the path contains 'id%@'."
+//            )
+//        }
+//
+//        path.removeAll()
+//
+//        for value in values {
+//            path.append(components.removeFirst() + value.description)
+//        }
+//
+//        path.append(components.removeLast())
+//
+//        return path
+//    }
+//
+//    //
+//
+//    open func buildURL() throws -> URL {
+//
+//        var components = self.base.appendingPathComponent(self.endpoint).components!
+//
+//        components.path = try self.buildPath(formatting: components.path)
+//
+//        components.query = try self.buildQuery(addTo: components.query)
+//
+//        return components.url!
+//    }
+//
+//    //
+//
+//    open func buildRequest() throws -> (urlRequest: URLRequest, taskType: TaskType) {
+//
+//        var urlRequest = try URLRequest(url: self.buildURL())
+//
+//        urlRequest.httpMethod = self.method.rawValue
+//
+//        let body = try self.buildBody()
+//
+//        var headers = self.headers
+//        for (field, value) in body?.httpHeaders ?? [:] {
+//            headers[field] = value
+//        }
+//
+//        urlRequest.httpHeaders = headers
+//
+//        let taskType = self.buildTaskType(with: body?.data)
+//
+//        if case .dataTask = taskType {
+//            urlRequest.httpBody = body?.data.dataValue
+//        }
+//
+//        try self.requestInterceptor?(&urlRequest)
+//
+//        return (urlRequest, taskType)
+//    }
+//
+//    /// captures values to validate and intercept the response
+//    open func buildConfirmation() -> (inout Response<AnyData>) throws -> Void {
+//
+//        return { [statusConfirmation = self.statusConfirmation, responseInterceptor = self.responseInterceptor] in
+//
+//            try responseInterceptor?(&$0)
+//
+//            if $0.isValid,
+//                let statusCode = $0.statusCode,
+//                let statusConfirmation = statusConfirmation {
+//
+//                $0.isValid = statusConfirmation(statusCode)
+//            }
+//        }
+//    }
+//
+//    open func build<T: CallAdaptable>(_ call: T.Type = T.self) throws -> T {
+//
+//        let value = T.Return.self
+//        let (urlRequest, taskType) = try self.buildRequest()
+//
+//        return T( Call<T.Return>(
+//            urlRequest,
+//            callbackQueue: self.callbackQueue,
+//            autoResume: self.autoResume
+//            ) { [client = self.client, confirmation = self.buildConfirmation(), decodeHandler = self.buildDecodeHandler(for: value)] in
+//
+//                let callback = $0.callback
+//
+//                return client.createTask(taskType, with: $0.urlRequest, delegate: $0.delegate) {
+//
+//                    var response = $0
+//
+//                    do {
+//                        try confirmation(&response)
+//                    } catch {
+//                        response.error = response.error ?? error
+//                        response.isValid = false
+//                    }
+//
+//                    callback(response.convert(decodeHandler))
+//                }
+//            }
+//        )
+//    }
+//}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
